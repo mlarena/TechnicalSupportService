@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="TechnicalSupportService.Core/TechnicalSupportService.Core.csproj" />
+  <Project Path="TechnicalSupportService.Data/TechnicalSupportService.Data.csproj" />
+  <Project Path="TechnicalSupportService.SUTP/TechnicalSupportService.SUTP.csproj" />
+</Solution>
