@@ -16,7 +16,8 @@ public class FilesController : Controller
     public async Task<IActionResult> Upload(Guid ticketId, IFormFile file)
     {
         if (file == null || file.Length == 0) { TempData["Error"] = "Файл не выбран"; return RedirectToAction("Details", "Tickets", new { id = ticketId }); }
-        await _attachmentService.UploadAsync(ticketId, file, CurrentUserId);
+        using var stream = file.OpenReadStream();
+        await _attachmentService.UploadAsync(ticketId, stream, file.FileName, file.ContentType, file.Length, CurrentUserId);
         return RedirectToAction("Details", "Tickets", new { id = ticketId });
     }
 

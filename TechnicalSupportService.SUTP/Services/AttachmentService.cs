@@ -35,15 +35,15 @@ public class AttachmentService : IAttachmentService
 
         var attachment = new Attachment
         {
-            TicketId = ticketId, FileName = file.FileName, StoredFileName = Path.GetFileName(filePath),
-            FilePath = filePath, FileSizeBytes = file.Length, MimeType = file.ContentType,
+            TicketId = ticketId, FileName = fileName, StoredFileName = Path.GetFileName(filePath),
+            FilePath = filePath, FileSizeBytes = fileSize, MimeType = contentType,
             UploadedByUserId = currentUserId, UploadedAt = DateTime.UtcNow
         };
         _db.Attachments.Add(attachment);
         _db.TicketHistories.Add(new TicketHistory
         {
             TicketId = ticketId, ChangedByUserId = currentUserId, ChangeType = ChangeType.FileAttach,
-            AttachmentId = attachment.Id, NewValue = file.FileName
+            AttachmentId = attachment.Id, NewValue = fileName
         });
         await _audit.LogAsync("File.Upload", currentUserId, "Attachment", attachment.Id);
         await _db.SaveChangesAsync();
