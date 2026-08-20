@@ -1,0 +1,14 @@
+@model TechnicalSupportService.Data.Entities.ApplicationUser
+@{ ViewData["Title"] = "Профиль"; }
+<h2>Мой профиль</h2>
+@if (ViewBag.Message != null) { <div class="alert alert-success">@ViewBag.Message</div> }
+<div class="row"><div class="col-md-6">
+<form asp-action="Profile" method="post">
+    <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" value="@Model.Email" disabled /></div>
+    <div class="mb-3"><label class="form-label">ФИО *</label><input type="text" name="fullName" class="form-control" value="@Model.FullName" required /></div>
+    <div class="mb-3"><label class="form-label">Должность</label><input type="text" name="position" class="form-control" value="@Model.Position" /></div>
+    <div class="mb-3"><label class="form-label">Телефон</label><input type="tel" name="phoneNumber" class="form-control" value="@Model.PhoneNumber" /></div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+    <a asp-action="ChangePassword" class="btn btn-outline-secondary">Сменить пароль</a>
+</form>
+</div></div>
