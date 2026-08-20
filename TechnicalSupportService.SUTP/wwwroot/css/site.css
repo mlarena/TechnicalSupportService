@@ -5,6 +5,17 @@ body { margin-bottom: 60px; font-family: -apple-system, BlinkMacSystemFont, "Seg
 .nav-tabs .nav-link.active { font-weight: 600; }
 .badge { font-size: 0.75em; padding: 0.35em 0.65em; }
 
+/* Карточки статистики на дашборде */
+.stat-card {
+    border: 1px solid rgba(13, 110, 253, 0.2);
+    box-shadow: 0 4px 16px rgba(13, 110, 253, 0.15), 0 1px 4px rgba(0, 0, 0, 0.06);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.stat-card:hover {
+    box-shadow: 0 6px 24px rgba(13, 110, 253, 0.25), 0 2px 6px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+
 [data-theme="dark"] body { background-color: #1a1a2e; color: #e0e0e0; }
 [data-theme="dark"] .card { background-color: #16213e; border-color: #2a2a4a; }
 [data-theme="dark"] .table { color: #e0e0e0; }

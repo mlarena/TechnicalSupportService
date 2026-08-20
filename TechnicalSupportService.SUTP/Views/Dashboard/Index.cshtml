@@ -1,21 +1,42 @@
 @model TechnicalSupportService.Core.DTOs.DashboardDto
+@using TechnicalSupportService.Core.Enums
 @{ ViewData["Title"] = "Дашборд"; }
 
 <h2>Дашборд</h2>
 
 <div class="row mb-4">
-    <div class="col-md-3"><div class="card text-white bg-info"><div class="card-body text-center">
-        <h4>@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</h4><small>Новые</small>
-    </div></div></div>
-    <div class="col-md-3"><div class="card text-white bg-warning"><div class="card-body text-center">
-        <h4>@(Model.TicketsByStatus.GetValueOrDefault("InProgress", 0))</h4><small>В работе</small>
-    </div></div></div>
-    <div class="col-md-3"><div class="card text-white bg-success"><div class="card-body text-center">
-        <h4>@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</h4><small>Решены</small>
-    </div></div></div>
-    <div class="col-md-3"><div class="card text-white bg-danger"><div class="card-body text-center">
-        <h4>@Model.CriticalCount</h4><small>Критические</small>
-    </div></div></div>
+    <div class="col-md-3">
+        <div class="card stat-card rounded-3">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Новые</div>
+                <div class="fs-3 fw-bold text-dark">@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card rounded-3">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">В работе</div>
+                <div class="fs-3 fw-bold text-dark">@(Model.TicketsByStatus.GetValueOrDefault("InProgress", 0))</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card rounded-3">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Решены</div>
+                <div class="fs-3 fw-bold text-dark">@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card rounded-3">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Критические</div>
+                <div class="fs-3 fw-bold text-dark">@Model.CriticalCount</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <h4>Последние заявки</h4>
@@ -26,8 +47,8 @@
     {
         <tr onclick="location.href='@Url.Action("Details", "Tickets", new { id = t.Id })'" style="cursor:pointer">
             <td>@t.Number</td><td>@t.Title</td>
-            <td><span class="badge bg-@(t.Status == TechnicalSupportService.Core.Enums.TicketStatus.New ? "info" : t.Status == TechnicalSupportService.Core.Enums.TicketStatus.InProgress ? "warning" : t.Status == TechnicalSupportService.Core.Enums.TicketStatus.Resolved ? "success" : "secondary")">@t.Status</span></td>
-            <td><span class="badge bg-@(t.Priority == TechnicalSupportService.Core.Enums.Priority.Critical ? "danger" : t.Priority == TechnicalSupportService.Core.Enums.Priority.High ? "warning" : "info")">@t.Priority</span></td>
+            <td><span class="badge bg-@(t.Status == TicketStatus.New ? "info" : t.Status == TicketStatus.InProgress ? "warning" : t.Status == TicketStatus.Resolved ? "success" : "secondary")">@t.Status</span></td>
+            <td><span class="badge bg-@(t.Priority == Priority.Critical ? "danger" : t.Priority == Priority.High ? "warning" : "info")">@t.Priority</span></td>
             <td>@t.ProductName</td><td>@t.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
         </tr>
     }

@@ -1,11 +1,33 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
 using TechnicalSupportService.Data.Context;
 using TechnicalSupportService.Data.Entities;
 using TechnicalSupportService.SUTP.Infrastructure;
 using TechnicalSupportService.SUTP.Middleware;
 
-var builder = WebApplication.CreateBuilder(args);
+// === Serilog ===
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", Serilog.Events.LogEventLevel.Warning)
+    .WriteTo.File(
+        path: "logs/log-.txt",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 14,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .WriteTo.Console(
+        outputTemplate: "{Timestamp:HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+try
+{
+    Log.Information("Приложение СУТП запускается");
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog();
 
 // === БД ===
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -69,5 +91,15 @@ app.MapControllerRoute(
     pattern: "{controller=Dashboard}/{action=Index}/{id?}");
 
 app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Приложение завершилось с критической ошибкой");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
 public partial class Program { }
