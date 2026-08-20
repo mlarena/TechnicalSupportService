@@ -68,7 +68,7 @@ public class TicketService : ITicketService
         var ticket = new Ticket
         {
             Id = Guid.NewGuid(), Number = number, Title = dto.Title, Description = dto.Description,
-            ProductId = dto.ProductId, Version = dto.Version, Priority = dto.Priority,
+            ProductId = dto.ProductId, Version = "1", Priority = dto.Priority,
             Status = TicketStatus.New, Category = dto.Category, Impact = dto.Impact, Source = dto.Source,
             AssignedToUserId = dto.AssignedToUserId, CreatedByUserId = currentUserId,
             UpdatedByUserId = currentUserId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
@@ -95,10 +95,15 @@ public class TicketService : ITicketService
         if (ticket.Title != dto.Title) { changes.Add($"Title: {ticket.Title} → {dto.Title}"); ticket.Title = dto.Title; }
         if (ticket.Description != dto.Description) { changes.Add("Description изменено"); ticket.Description = dto.Description; }
         if (ticket.ProductId != dto.ProductId) { changes.Add($"ProductId → {dto.ProductId}"); ticket.ProductId = dto.ProductId; }
-        if (ticket.Version != dto.Version) { changes.Add($"Version → {dto.Version}"); ticket.Version = dto.Version; }
         if (ticket.Priority != dto.Priority) { changes.Add($"Priority → {dto.Priority}"); ticket.Priority = dto.Priority; }
         if (ticket.Category != dto.Category) { changes.Add($"Category → {dto.Category}"); ticket.Category = dto.Category; }
         if (ticket.Impact != dto.Impact) { changes.Add($"Impact → {dto.Impact}"); ticket.Impact = dto.Impact; }
+
+        // Auto-increment Version
+        if (int.TryParse(ticket.Version, out var ver))
+            ticket.Version = (ver + 1).ToString();
+        else
+            ticket.Version = "1";
 
         ticket.UpdatedByUserId = currentUserId; ticket.UpdatedAt = DateTime.UtcNow;
 

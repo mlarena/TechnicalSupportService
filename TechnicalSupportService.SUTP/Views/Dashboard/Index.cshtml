@@ -1,5 +1,6 @@
 @model TechnicalSupportService.Core.DTOs.DashboardDto
 @using TechnicalSupportService.Core.Enums
+@using TechnicalSupportService.Core.Helpers
 @{ ViewData["Title"] = "Дашборд"; }
 
 <h2>Дашборд</h2>
@@ -47,8 +48,8 @@
     {
         <tr onclick="location.href='@Url.Action("Details", "Tickets", new { id = t.Id })'" style="cursor:pointer">
             <td>@t.Number</td><td>@t.Title</td>
-            <td><span class="badge bg-@(t.Status == TicketStatus.New ? "info" : t.Status == TicketStatus.InProgress ? "warning" : t.Status == TicketStatus.Resolved ? "success" : "secondary")">@t.Status</span></td>
-            <td><span class="badge bg-@(t.Priority == Priority.Critical ? "danger" : t.Priority == Priority.High ? "warning" : "info")">@t.Priority</span></td>
+            <td><span class="badge bg-@(t.Status == TicketStatus.New ? "info" : t.Status == TicketStatus.InProgress ? "warning" : t.Status == TicketStatus.Resolved ? "success" : "secondary")">@t.Status.ToDisplayString()</span></td>
+            <td><span class="badge bg-@(t.Priority == Priority.Critical ? "danger" : t.Priority == Priority.High ? "warning" : "info")">@t.Priority.ToDisplayString()</span></td>
             <td>@t.ProductName</td><td>@t.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
         </tr>
     }

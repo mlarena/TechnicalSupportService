@@ -7,6 +7,8 @@ using TechnicalSupportService.Core.DTOs;
 using TechnicalSupportService.Core.Enums;
 using TechnicalSupportService.Core.Interfaces;
 
+using TechnicalSupportService.Core.Helpers;
+
 namespace TechnicalSupportService.SUTP.Controllers;
 
 [Authorize]
@@ -38,9 +40,9 @@ public class TicketsController : Controller
     {
         ViewBag.Products = new SelectList(await _productService.GetAllAsync(), "Id", "Name");
         ViewBag.Engineers = new SelectList(await _userService.GetEngineersAsync(), "Id", "FullName");
-        ViewBag.Priorities = new SelectList(Enum.GetValues<Priority>().Select(v => new { Value = v, Text = v.ToString() }), "Value", "Text");
-        ViewBag.Categories = new SelectList(Enum.GetValues<Category>().Select(v => new { Value = v, Text = v.ToString() }), "Value", "Text");
-        ViewBag.Sources = new SelectList(Enum.GetValues<Source>().Select(v => new { Value = v, Text = v.ToString() }), "Value", "Text");
+        ViewBag.Priorities = new SelectList(Enum.GetValues<Priority>().Select(v => new { Value = v, Text = v.ToDisplayString() }), "Value", "Text");
+        ViewBag.Categories = new SelectList(Enum.GetValues<Category>().Select(v => new { Value = v, Text = v.ToDisplayString() }), "Value", "Text");
+        ViewBag.Sources = new SelectList(Enum.GetValues<Source>().Select(v => new { Value = v, Text = v.ToDisplayString() }), "Value", "Text");
         return View();
     }
 
@@ -61,8 +63,26 @@ public class TicketsController : Controller
         ViewBag.History = await _ticketService.GetHistoryAsync(id);
         ViewBag.CurrentRole = CurrentRole;
         ViewBag.CurrentUserId = CurrentUserId;
+
+        // Engineers for assign dropdown
+        ViewBag.Engineers = new SelectList(await _userService.GetEngineersAsync(), "Id", "FullName", ticket.AssignedToUserId);
+
+        // Valid status transitions
+        ViewBag.ValidStatuses = GetValidTransitions(ticket.Status, CurrentRole);
+
         return View(ticket);
     }
+
+    private static List<TicketStatus> GetValidTransitions(TicketStatus current, string role) => (current, role) switch
+    {
+        (TicketStatus.New, Roles.Admin or Roles.Manager) => [TicketStatus.Assigned, TicketStatus.Closed],
+        (TicketStatus.Assigned, Roles.Engineer) => [TicketStatus.InProgress],
+        (TicketStatus.InProgress, Roles.Engineer) => [TicketStatus.Resolved],
+        (TicketStatus.Resolved, _) => [TicketStatus.Closed, TicketStatus.Reopened],
+        (TicketStatus.Closed, Roles.Applicant or Roles.Manager or Roles.Admin) => [TicketStatus.Reopened],
+        (_, Roles.Admin or Roles.Manager) => [TicketStatus.Closed],
+        _ => new List<TicketStatus>()
+    };
 
     [HttpGet] public async Task<IActionResult> Edit(Guid id)
     {

@@ -50,9 +50,6 @@ public class TicketCreateDto
     [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Выберите продукт")]
     public Guid ProductId { get; set; }
 
-    [System.ComponentModel.DataAnnotations.MaxLength(20)]
-    public string? Version { get; set; }
-
     [System.ComponentModel.DataAnnotations.Required]
     public Priority Priority { get; set; }
 
@@ -78,9 +75,6 @@ public class TicketUpdateDto
 
     [System.ComponentModel.DataAnnotations.Required]
     public Guid ProductId { get; set; }
-
-    [System.ComponentModel.DataAnnotations.MaxLength(20)]
-    public string? Version { get; set; }
 
     public Priority Priority { get; set; }
     public Category Category { get; set; }
