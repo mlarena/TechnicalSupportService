@@ -1,327 +1,540 @@
-# Шаг 2. Проектирование базы данных — сущности, связи, таблицы
+# Шаг 2. Сущности, enum'ы и DbContext — точный C# код
 
-## 2.1. Сущность «Заявка» (Ticket)
-
-### Поля заявки
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **Id** | UUID (PK) | Да | Внутренний идентификатор |
-| **Number** | String(50) | Да | Внешний номер формата `ГГГГ_ММ_XXX` |
-| **Title** | String(200) | Да | Краткий заголовок заявки |
-| **Description** | Text | Да | Полное описание проблемы |
-| **ProductId** | UUID (FK -> Products) | Да | Ссылка на продукт |
-| **Version** | String(20) | Нет | Версия продукта (может отличаться от CurrentVersion) |
-| **Priority** | Enum | Да | `Low` / `Medium` / `High` / `Critical` |
-| **Status** | Enum | Да | `New` / `Assigned` / `InProgress` / `Resolved` / `Closed` / `Reopened` |
-| **Category** | Enum | Да | `Bug` / `Feature` / `Support` / `Incident` |
-| **Impact** | Enum | Нет | `Individual` / `Team` / `Department` / `Company` |
-| **Source** | Enum | Да | `Email` / `Phone` / `Portal` / `Internal` |
-| **AssignedToUserId** | UUID (FK -> Users) | Нет | Исполнитель (инженер) |
-| **CreatedByUserId** | UUID (FK -> Users) | Да | Кто создал заявку (автозаполнение) |
-| **CreatedAt** | Timestamp | Да | Дата создания (UTC) |
-| **UpdatedByUserId** | UUID (FK -> Users) | Да | Кто последним изменял (автозаполнение) |
-| **UpdatedAt** | Timestamp | Да | Дата последнего изменения (UTC) |
-| **ClosedAt** | Timestamp | Нет | Дата закрытия (заполняется при статусе `Closed`) |
-| **Resolution** | Text | Нет | Описание решения (при `Resolved` / `Closed`) |
-| **TimeSpentMinutes** | Integer | Нет | Затраченное время в минутах |
-| **ParentTicketId** | UUID (FK -> Tickets) | Нет | Ссылка на родительскую заявку (эпик) |
-| **IsDeleted** | Boolean | Да | Мягкое удаление (по умолчанию `false`) |
-| **DeletedAt** | Timestamp | Нет | Дата удаления |
-| **DeletedByUserId** | UUID (FK -> Users) | Нет | Кто удалил |
-
-> Примечание: `ProductName` (String) и `ProductType` (Enum) заменены на `ProductId` (FK -> Products) для целостности справочника.
+> Каждый блок кода — отдельный файл. Путь указан в заголовке блока.
+> Namespace соответствует пути от корня проекта.
 
 ---
 
-## 2.2. Нумерация заявок (ключевое требование)
+## 2.1. Enum'ы (Core/Enums/)
 
-**Формат номера:** `ГГГГ_ММ_ПОРЯДКОВЫЙ_НОМЕР`
+### Core/Enums/ProductType.cs
 
-Примеры:
-- `2026_08_001`
-- `2026_08_102`
-- `2026_09_001` (сброс в новом месяце)
+```csharp
+namespace TechnicalSupportService.Core.Enums;
 
-**Правила генерации:**
-1. Номер формируется **автоматически** при создании заявки.
-2. Счётчик сбрасывается **каждый месяц** (независимо для каждого месяца).
-3. Счётчик хранится в отдельной таблице `TicketNumberCounter`:
-   - `YearMonth` (например, `2026-08`) — PK.
-   - `LastNumber` — последний использованный номер.
-4. При создании заявки в транзакции:
-   - Блокируем строку `SELECT ... FOR UPDATE`.
-   - Инкрементируем `LastNumber`.
-   - Формируем номер: `$"{Year:0000}_{Month:00}_{LastNumber:D3}"`.
-   - Если строка отсутствует — создаём со значением `1`.
-5. Допустимо использование `SEQUENCE` с условием, но рекомендуемый подход — таблица с блокировкой для простоты и ясности.
-
----
-
-## 2.3. Версионность и история изменений (TicketHistory)
-
-Каждое изменение заявки фиксируется в отдельной таблице.
-
-### Поля
-
-| Поле | Тип данных | Описание |
-|------|-----------|----------|
-| **Id** | UUID (PK) | Уникальный идентификатор записи истории |
-| **TicketId** | UUID (FK) | Ссылка на заявку |
-| **ChangedByUserId** | UUID (FK) | Кто изменил |
-| **ChangedAt** | Timestamp | Дата изменения (UTC) |
-| **FieldName** | String(50) | Название изменённого поля |
-| **OldValue** | Text | Старое значение (строка). Null для создания |
-| **NewValue** | Text | Новое значение (строка) |
-| **ChangeType** | Enum | `Creation` / `Update` / `StatusChange` / `Assignment` / `Comment` / `FileAttach` |
-| **CommentId** | UUID (FK -> Comments) | Ссылка на комментарий (если `ChangeType = Comment`) |
-| **AttachmentId** | UUID (FK -> Attachments) | Ссылка на вложение (если `ChangeType = FileAttach`) |
-
-### Правила фиксации
-
-- Изменение **любого поля** → новая запись в `TicketHistory`.
-- Добавление комментария → запись с `ChangeType = Comment`.
-- Прикрепление/удаление файла → запись в истории.
-- Создание заявки → запись с `ChangeType = Creation`.
-- Назначение исполнителя → запись с `ChangeType = Assignment`.
-
----
-
-## 2.4. Хранение документов (файлы)
-
-### Требования
-
-- Каждый файл прикрепляется к конкретной заявке.
-- Поддерживаемые форматы: `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.jpg`, `.png`, `.zip`.
-- Максимальный размер одного файла — **50 МБ**.
-- Общий лимит на заявку — **500 МБ**.
-- Физические файлы хранятся на файловом сервере (или в S3-совместимом хранилище).
-
-### Таблица Attachments
-
-| Поле | Тип данных | Описание |
-|------|-----------|----------|
-| **Id** | UUID (PK) | Идентификатор |
-| **TicketId** | UUID (FK) | Заявка |
-| **FileName** | String(255) | Оригинальное имя файла |
-| **StoredFileName** | String(255) | Уникальное имя на диске (GUID + расширение) |
-| **FilePath** | String(500) | Относительный путь к файлу |
-| **FileSizeBytes** | BigInt | Размер в байтах |
-| **MimeType** | String(100) | MIME-тип |
-| **UploadedByUserId** | UUID (FK) | Кто загрузил |
-| **UploadedAt** | Timestamp | Дата загрузки |
-| **IsDeleted** | Boolean | Мягкое удаление (по умолчанию `false`) |
-| **DeletedAt** | Timestamp | Дата удаления |
-
----
-
-## 2.5. Статусная модель
-
-### Диаграмма состояний
-
-```
-[New] → [Assigned] → [InProgress] → [Resolved] → [Closed]
-  ↑         ↓              ↓            ↓
-  └────[Reopened] ←─────────────────────┘
+public enum ProductType
+{
+    Software,
+    Hardware,
+    Embedded
+}
 ```
 
-### Правила переходов
+### Core/Enums/Priority.cs
 
-| Переход | Кто может выполнить |
-|---------|---------------------|
-| `New` → `Assigned` | Менеджер, Администратор |
-| `Assigned` → `InProgress` | Инженер |
-| `InProgress` → `Resolved` | Инженер (заполняет Resolution) |
-| `Resolved` → `Closed` | Заявитель, Менеджер |
-| `Resolved` → `Reopened` | Заявитель, Менеджер |
-| `Closed` → `Reopened` | Заявитель, Менеджер |
-| Любой → `Closed` | Администратор, Менеджер (с комментарием) |
+```csharp
+namespace TechnicalSupportService.Core.Enums;
 
----
-
-## 2.6. Полное описание всех таблиц БД
-
-### 2.6.1. Таблица `Users` (расширение ASP.NET Identity)
-
-Наследуется от `IdentityUser<Guid>`. Стандартные поля Identity (Id, UserName, Email, PasswordHash, PhoneNumber и др.) дополняются кастомными.
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **Id** | UUID (PK) | Да | Уникальный идентификатор (наследуется от IdentityUser) |
-| **FullName** | String(200) | Да | ФИО пользователя |
-| **DepartmentId** | UUID (FK) | Нет | Ссылка на отдел (таблица `Departments`) |
-| **Position** | String(100) | Нет | Должность |
-| **IsActive** | Boolean | Да | Активен/заблокирован (по умолчанию `true`) |
-| **CreatedAt** | Timestamp | Да | Дата создания учётной записи (UTC) |
-| **UpdatedAt** | Timestamp | Да | Дата последнего обновления профиля (UTC) |
-
-> Поля `Email`, `PhoneNumber`, `UserName`, `EmailConfirmed`, `PasswordHash` и др. наследуются от `IdentityUser<Guid>` и не дублируются.
-
----
-
-### 2.6.2. Таблица `Departments` (справочник отделов)
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **Id** | UUID (PK) | Да | Уникальный идентификатор |
-| **Name** | String(200) | Да | Наименование отдела (уникальное) |
-| **Description** | String(500) | Нет | Описание отдела |
-| **IsActive** | Boolean | Да | Активен/архив (по умолчанию `true`) |
-| **CreatedAt** | Timestamp | | Дата создания записи |
-
----
-
-### 2.6.3. Таблица `Products` (справочник продуктов)
-
-Вынесена из Tickets для нормализации.
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **Id** | UUID (PK) | Да | Уникальный идентификатор |
-| **Name** | String(200) | Да | Наименование продукта |
-| **ProductType** | Enum | Да | `Software` / `Hardware` / `Embedded` |
-| **CurrentVersion** | String(20) | Нет | Текущая актуальная версия продукта |
-| **Description** | String(500) | Нет | Краткое описание продукта |
-| **IsActive** | Boolean | Да | Активен/снят с поддержки (по умолчанию `true`) |
-| **CreatedAt** | Timestamp | Да | Дата создания записи |
-| **UpdatedAt** | Timestamp | Да | Дата последнего обновления |
-
----
-
-### 2.6.4. Таблица `Tickets` (заявки) — основная сущность
-
-Полное описание полей см. в §2.1 выше.
-
----
-
-### 2.6.5. Таблица `Comments` (комментарии к заявкам)
-
-Вынесена из `TicketHistory` в отдельную сущность.
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **Id** | UUID (PK) | Да | Уникальный идентификатор |
-| **TicketId** | UUID (FK -> Tickets) | Да | Заявка |
-| **AuthorUserId** | UUID (FK -> Users) | Да | Автор комментария |
-| **Content** | Text | Да | Текст комментария |
-| **IsInternal** | Boolean | Да | Внутренний (скрыт от заявителя). По умолчанию `false` |
-| **IsEdited** | Boolean | Да | Был ли отредактирован. По умолчанию `false` |
-| **EditedAt** | Timestamp | Нет | Дата последнего редактирования |
-| **CreatedAt** | Timestamp | Да | Дата создания (UTC) |
-| **IsDeleted** | Boolean | Да | Мягкое удаление. По умолчанию `false` |
-
-> При добавлении комментария в `TicketHistory` создаётся запись с `ChangeType = Comment` (ссылка на Id комментария в `NewValue`), но сам текст хранится в `Comments`.
-
----
-
-### 2.6.6. Таблица `TicketHistory` (история изменений)
-
-Полное описание полей см. в §2.3 выше.
-
----
-
-### 2.6.7. Таблица `Attachments` (вложения/файлы)
-
-Полное описание полей см. в §2.4 выше.
-
----
-
-### 2.6.8. Таблица `TicketNumberCounter` (счётчик нумерации)
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **YearMonth** | String(7) (PK) | Да | Ключ формата `ГГГГ-ММ` (например, `2026-08`) |
-| **LastNumber** | Integer | Да | Последний использованный порядковый номер (по умолчанию 0) |
-
----
-
-### 2.6.9. Таблица `AuditLog` (аудит действий пользователей)
-
-Логирование **все** действий пользователей (не только изменения заявок).
-
-| Поле | Тип данных | Обязательное | Описание |
-|------|-----------|--------------|----------|
-| **Id** | UUID (PK) | Да | Уникальный идентификатор |
-| **UserId** | UUID (FK -> Users) | Да | Кто выполнил действие |
-| **Action** | String(100) | Да | Тип действия (`Ticket.Create`, `User.Block`, `File.Upload` и т.д.) |
-| **EntityName** | String(100) | Нет | Имя сущности (`Ticket`, `User`, `Attachment`) |
-| **EntityId** | UUID | Нет | Идентификатор затронутой сущности |
-| **Details** | Text | Нет | Дополнительные детали (JSON или текст) |
-| **IpAddress** | String(45) | Нет | IP-адрес пользователя |
-| **UserAgent** | String(500) | Нет | User-Agent браузера |
-| **CreatedAt** | Timestamp | Да | Дата и время действия (UTC) |
-
----
-
-### 2.6.10. Перечень enum-типов
-
-| Enum | Значения | Используется в |
-|------|----------|----------------|
-| **ProductType** | `Software`, `Hardware`, `Embedded` | Products |
-| **Priority** | `Low`, `Medium`, `High`, `Critical` | Tickets |
-| **TicketStatus** | `New`, `Assigned`, `InProgress`, `Resolved`, `Closed`, `Reopened` | Tickets |
-| **Category** | `Bug`, `Feature`, `Support`, `Incident` | Tickets |
-| **Impact** | `Individual`, `Team`, `Department`, `Company` | Tickets |
-| **Source** | `Email`, `Phone`, `Portal`, `Internal` | Tickets |
-| **ChangeType** | `Creation`, `Update`, `StatusChange`, `Assignment`, `Comment`, `FileAttach` | TicketHistory |
-
----
-
-### 2.6.11. ER-диаграмма (связи)
-
+public enum Priority
+{
+    Low,
+    Medium,
+    High,
+    Critical
+}
 ```
-┌─────────────┐       ┌──────────────┐       ┌─────────────────┐
-│ Departments  │1────N│    Users      │1────N│   AuditLog      │
-└─────────────┘       │ (IdentityUser)│       └─────────────────┘
-                      └──────┬───────┘
-                             │
-                 ┌───────────┼───────────┐
-                 │1          │1          │1
-                 │           │           │
-          ┌──────┴──────┐    │    ┌──────┴──────┐
-          │  Comments   │    │    │ Attachments │
-          └──────┬──────┘    │    └──────┬──────┘
-                 │N          │           │N
-                 │           │           │
-                 └─────┐N    │    N┌─────┘
-                       │     │     │
-                 ┌─────┴─────┴─────┴──────┐
-                 │        Tickets          │
-                 │  (PK: Id, Unique: Number)│
-                 └─────┬───────────────┬───┘
-                       │1              │1
-                       │               │
-                  N┌───┴────┐    N┌────┴───────┐
-                   │Ticket  │    │TicketNumber │
-                   │History │    │Counter      │
-                   └────────┘    └─────────────┘
 
-┌─────────────┐
-│  Products   │1────N│ Tickets │ (через ProductId FK)
-└─────────────┘
+### Core/Enums/TicketStatus.cs
+
+```csharp
+namespace TechnicalSupportService.Core.Enums;
+
+public enum TicketStatus
+{
+    New,
+    Assigned,
+    InProgress,
+    Resolved,
+    Closed,
+    Reopened
+}
+```
+
+### Core/Enums/Category.cs
+
+```csharp
+namespace TechnicalSupportService.Core.Enums;
+
+public enum Category
+{
+    Bug,
+    Feature,
+    Support,
+    Incident
+}
+```
+
+### Core/Enums/Impact.cs
+
+```csharp
+namespace TechnicalSupportService.Core.Enums;
+
+public enum Impact
+{
+    Individual,
+    Team,
+    Department,
+    Company
+}
+```
+
+### Core/Enums/Source.cs
+
+```csharp
+namespace TechnicalSupportService.Core.Enums;
+
+public enum Source
+{
+    Email,
+    Phone,
+    Portal,
+    Internal
+}
+```
+
+### Core/Enums/ChangeType.cs
+
+```csharp
+namespace TechnicalSupportService.Core.Enums;
+
+public enum ChangeType
+{
+    Creation,
+    Update,
+    StatusChange,
+    Assignment,
+    Comment,
+    FileAttach
+}
 ```
 
 ---
 
-## 2.7. Технические требования к БД (PostgreSQL)
+## 2.2. Сущности (Data/Entities/)
 
-### Индексы
+### Data/Entities/ApplicationUser.cs
 
-| Таблица | Индекс | Тип | Поля |
-|---------|--------|-----|------|
-| `Tickets` | `IX_Ticket_Number` | UNIQUE | `Number` |
-| `Tickets` | `IX_Ticket_CreatedAt` | | `CreatedAt DESC` |
-| `Tickets` | `IX_Ticket_Status` | | `Status` |
-| `Tickets` | `IX_Ticket_AssignedToUserId` | | `AssignedToUserId` |
-| `Tickets` | `IX_Ticket_CreatedByUserId` | | `CreatedByUserId` |
-| `Tickets` | `IX_Ticket_ProductId` | | `ProductId` |
-| `TicketHistory` | `IX_TicketHistory_TicketId_ChangedAt` | | `(TicketId, ChangedAt DESC)` |
-| `Attachments` | `IX_Attachments_TicketId` | | `TicketId` |
-| `Comments` | `IX_Comments_TicketId` | | `TicketId` |
-| `AuditLog` | `IX_AuditLog_UserId_CreatedAt` | | `(UserId, CreatedAt DESC)` |
-| `AuditLog` | `IX_AuditLog_EntityName_EntityId` | | `(EntityName, EntityId)` |
+```csharp
+using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
-### Триггеры (опционально)
+namespace TechnicalSupportService.Data.Entities;
 
-- Автоматическое заполнение `UpdatedAt` при изменении строки.
-- Автоматическое заполнение `CreatedAt` при вставке.
+public class ApplicationUser : IdentityUser<Guid>
+{
+    [Required]
+    [MaxLength(200)]
+    public string FullName { get; set; } = string.Empty;
+
+    public Guid? DepartmentId { get; set; }
+
+    [MaxLength(100)]
+    public string? Position { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    [ForeignKey(nameof(DepartmentId))]
+    public virtual Department? Department { get; set; }
+}
+```
+
+### Data/Entities/ApplicationRole.cs
+
+```csharp
+using Microsoft.AspNetCore.Identity;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class ApplicationRole : IdentityRole<Guid>
+{
+    public ApplicationRole() : base() { }
+    public ApplicationRole(string roleName) : base(roleName) { }
+}
+```
+
+### Data/Entities/Department.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class Department
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [Required]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public virtual ICollection<ApplicationUser> Users { get; set; } = new List<ApplicationUser>();
+}
+```
+
+### Data/Entities/Product.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using TechnicalSupportService.Core.Enums;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class Product
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [Required]
+    [MaxLength(200)]
+    public string Name { get; set; } = string.Empty;
+
+    public ProductType ProductType { get; set; }
+
+    [MaxLength(20)]
+    public string? CurrentVersion { get; set; }
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public virtual ICollection<Ticket> Tickets { get; set; } = new List<Ticket>();
+}
+```
+
+### Data/Entities/Ticket.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using TechnicalSupportService.Core.Enums;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class Ticket
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    [Required]
+    [MaxLength(50)]
+    public string Number { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(200)]
+    public string Title { get; set; } = string.Empty;
+
+    [Required]
+    public string Description { get; set; } = string.Empty;
+
+    public Guid ProductId { get; set; }
+
+    [MaxLength(20)]
+    public string? Version { get; set; }
+
+    public Priority Priority { get; set; }
+
+    public TicketStatus Status { get; set; } = TicketStatus.New;
+
+    public Category Category { get; set; }
+
+    public Impact? Impact { get; set; }
+
+    public Source Source { get; set; }
+
+    public Guid? AssignedToUserId { get; set; }
+
+    public Guid CreatedByUserId { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public Guid UpdatedByUserId { get; set; }
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime? ClosedAt { get; set; }
+
+    public string? Resolution { get; set; }
+
+    public int? TimeSpentMinutes { get; set; }
+
+    public Guid? ParentTicketId { get; set; }
+
+    public bool IsDeleted { get; set; } = false;
+
+    public DateTime? DeletedAt { get; set; }
+
+    public Guid? DeletedByUserId { get; set; }
+
+    // Навигационные свойства
+    [ForeignKey(nameof(ProductId))]
+    public virtual Product Product { get; set; } = null!;
+
+    [ForeignKey(nameof(AssignedToUserId))]
+    public virtual ApplicationUser? AssignedToUser { get; set; }
+
+    [ForeignKey(nameof(CreatedByUserId))]
+    public virtual ApplicationUser CreatedByUser { get; set; } = null!;
+
+    [ForeignKey(nameof(UpdatedByUserId))]
+    public virtual ApplicationUser UpdatedByUser { get; set; } = null!;
+
+    [ForeignKey(nameof(ParentTicketId))]
+    public virtual Ticket? ParentTicket { get; set; }
+
+    [ForeignKey(nameof(DeletedByUserId))]
+    public virtual ApplicationUser? DeletedByUser { get; set; }
+
+    public virtual ICollection<Ticket> ChildTickets { get; set; } = new List<Ticket>();
+    public virtual ICollection<TicketHistory> History { get; set; } = new List<TicketHistory>();
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+    public virtual ICollection<Attachment> Attachments { get; set; } = new List<Attachment>();
+}
+```
+
+### Data/Entities/TicketHistory.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using TechnicalSupportService.Core.Enums;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class TicketHistory
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid TicketId { get; set; }
+
+    public Guid ChangedByUserId { get; set; }
+
+    public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
+
+    [MaxLength(50)]
+    public string? FieldName { get; set; }
+
+    public string? OldValue { get; set; }
+
+    public string? NewValue { get; set; }
+
+    public ChangeType ChangeType { get; set; }
+
+    public Guid? CommentId { get; set; }
+
+    public Guid? AttachmentId { get; set; }
+
+    // Навигационные свойства
+    [ForeignKey(nameof(TicketId))]
+    public virtual Ticket Ticket { get; set; } = null!;
+
+    [ForeignKey(nameof(ChangedByUserId))]
+    public virtual ApplicationUser ChangedByUser { get; set; } = null!;
+
+    [ForeignKey(nameof(CommentId))]
+    public virtual Comment? Comment { get; set; }
+
+    [ForeignKey(nameof(AttachmentId))]
+    public virtual Attachment? Attachment { get; set; }
+}
+```
+
+### Data/Entities/Comment.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class Comment
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid TicketId { get; set; }
+
+    public Guid AuthorUserId { get; set; }
+
+    [Required]
+    public string Content { get; set; } = string.Empty;
+
+    public bool IsInternal { get; set; } = false;
+
+    public bool IsEdited { get; set; } = false;
+
+    public DateTime? EditedAt { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public bool IsDeleted { get; set; } = false;
+
+    // Навигационные свойства
+    [ForeignKey(nameof(TicketId))]
+    public virtual Ticket Ticket { get; set; } = null!;
+
+    [ForeignKey(nameof(AuthorUserId))]
+    public virtual ApplicationUser AuthorUser { get; set; } = null!;
+}
+```
+
+### Data/Entities/Attachment.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class Attachment
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid TicketId { get; set; }
+
+    [Required]
+    [MaxLength(255)]
+    public string FileName { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(255)]
+    public string StoredFileName { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(500)]
+    public string FilePath { get; set; } = string.Empty;
+
+    public long FileSizeBytes { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    public string MimeType { get; set; } = string.Empty;
+
+    public Guid UploadedByUserId { get; set; }
+
+    public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
+
+    public bool IsDeleted { get; set; } = false;
+
+    public DateTime? DeletedAt { get; set; }
+
+    // Навигационные свойства
+    [ForeignKey(nameof(TicketId))]
+    public virtual Ticket Ticket { get; set; } = null!;
+
+    [ForeignKey(nameof(UploadedByUserId))]
+    public virtual ApplicationUser UploadedByUser { get; set; } = null!;
+}
+```
+
+### Data/Entities/TicketNumberCounter.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class TicketNumberCounter
+{
+    [Key]
+    [MaxLength(7)]
+    public string YearMonth { get; set; } = string.Empty;
+
+    public int LastNumber { get; set; } = 0;
+}
+```
+
+### Data/Entities/AuditLog.cs
+
+```csharp
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace TechnicalSupportService.Data.Entities;
+
+public class AuditLog
+{
+    [Key]
+    public Guid Id { get; set; } = Guid.NewGuid();
+
+    public Guid UserId { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    public string Action { get; set; } = string.Empty;
+
+    [MaxLength(100)]
+    public string? EntityName { get; set; }
+
+    public Guid? EntityId { get; set; }
+
+    public string? Details { get; set; }
+
+    [MaxLength(45)]
+    public string? IpAddress { get; set; }
+
+    [MaxLength(500)]
+    public string? UserAgent { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Навигационные свойства
+    [ForeignKey(nameof(UserId))]
+    public virtual ApplicationUser User { get; set; } = null!;
+}
+```
+
+---
+
+## 2.3. DbContext (Data/Context/)
+
+### Data/Context/ApplicationDbContext.cs
+
+```csharp
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using TechnicalSupportService.Data.Entities;
+
+namespace TechnicalSupportService.Data.Context;
+
+public class ApplicationDbContext
+    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
+{
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+        : base(options) { }
+
+    public DbSet<Ticket> Tickets => Set<Ticket>();
+    public DbSet<TicketHistory> TicketHistories => Set<TicketHistory>();
+    public DbSet<Comment> Comments => Set<Comment>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<Department> Departments => Set<Department>();
+    public DbSet<TicketNumberCounter> TicketNumberCounters => Set<TicketNumberCounter>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder);
+        builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+    }
+}
+```

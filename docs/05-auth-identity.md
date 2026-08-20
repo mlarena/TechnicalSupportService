@@ -1,217 +1,23 @@
-# Шаг 5. Настройка Identity, DI и конфигурация приложения
+# Шаг 5. Identity, DI, Program.cs и Seed-данные
 
-## 5.1. ASP.NET Core Identity — настройка
-
-### Кастомная сущность пользователя
-
-```csharp
-// TechnicalSupportService.Data/Entities/ApplicationUser.cs
-public class ApplicationUser : IdentityUser<Guid>
-{
-    [Required, MaxLength(200)]
-    public string FullName { get; set; } = string.Empty;
-
-    public Guid? DepartmentId { get; set; }
-
-    [MaxLength(100)]
-    public string? Position { get; set; }
-
-    public bool IsActive { get; set; } = true;
-
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    // Навигационные свойства
-    [ForeignKey(nameof(DepartmentId))]
-    public Department? Department { get; set; }
-}
-```
-
-### Кастомный DbContext
-
-```csharp
-// TechnicalSupportService.Data/Context/ApplicationDbContext.cs
-public class ApplicationDbContext
-    : IdentityDbContext<ApplicationUser, ApplicationRole, Guid>
-{
-    public DbSet<Ticket> Tickets => Set<Ticket>();
-    public DbSet<TicketHistory> TicketHistories => Set<TicketHistory>();
-    public DbSet<Attachment> Attachments => Set<Attachment>();
-    public DbSet<Comment> Comments => Set<Comment>();
-    public DbSet<Product> Products => Set<Product>();
-    public DbSet<Department> Departments => Set<Department>();
-    public DbSet<TicketNumberCounter> TicketNumberCounters => Set<TicketNumberCounter>();
-    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
-
-    protected override void OnModelCreating(ModelBuilder builder)
-    {
-        base.OnModelCreating(builder);
-        builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
-    }
-}
-```
-
-### Регистрация Identity в Program.cs
-
-```csharp
-// TechnicalSupportService.SUTP/Program.cs
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
-
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
-{
-    // Настройки паролей
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = false;
-    options.Password.RequiredLength = 8;
-    options.Password.RequiredUniqueChars = 4;
-
-    // Настройки блокировки
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-    options.Lockout.MaxFailedAccessAttempts = 5;
-    options.Lockout.AllowedForNewUsers = true;
-
-    // Настройки пользователя
-    options.User.RequireUniqueEmail = true;
-    options.User.AllowedUserNameCharacters =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
-
-    // Подтверждение email (опционально)
-    options.SignIn.RequireConfirmedEmail = false; // true в продакшене
-})
-.AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders();
-```
+> Все файлы — в проекте TechnicalSupportService.SUTP.
 
 ---
 
-## 5.2. Регистрация ролей
+## 5.1. appsettings.json
 
-### Seed ролей
-
-```csharp
-// TechnicalSupportService.SUTP/Infrastructure/SeedData.cs
-public static class SeedData
-{
-    public static async Task InitializeAsync(IServiceProvider serviceProvider)
-    {
-        var roleManager = serviceProvider
-            .GetRequiredService<RoleManager<ApplicationRole>>();
-
-        string[] roles = { "Admin", "Engineer", "Manager", "Applicant" };
-
-        foreach (var role in roles)
-        {
-            if (!await roleManager.RoleExistsAsync(role))
-            {
-                await roleManager.CreateAsync(new ApplicationRole
-                {
-                    Name = role,
-                    NormalizedName = role.ToUpper()
-                });
-            }
-        }
-    }
-}
-```
-
-### Seed администратора
-
-```csharp
-public static async Task SeedAdminUserAsync(IServiceProvider serviceProvider)
-{
-    var userManager = serviceProvider
-        .GetRequiredService<UserManager<ApplicationUser>>();
-
-    const string adminEmail = "admin@company.com";
-    var admin = await userManager.FindByEmailAsync(adminEmail);
-
-    if (admin == null)
-    {
-        admin = new ApplicationUser
-        {
-            UserName = adminEmail,
-            Email = adminEmail,
-            FullName = "Администратор системы",
-            IsActive = true,
-            EmailConfirmed = true
-        };
-
-        var result = await userManager.CreateAsync(admin, "Admin123!");
-        if (result.Succeeded)
-        {
-            await userManager.AddToRoleAsync(admin, "Admin");
-        }
-    }
-}
-```
-
-### Константы ролей
-
-```csharp
-// TechnicalSupportService.Core/Constants/Roles.cs
-public static class Roles
-{
-    public const string Admin = "Admin";
-    public const string Engineer = "Engineer";
-    public const string Manager = "Manager";
-    public const string Applicant = "Applicant";
-}
-```
-
----
-
-## 5.3. Dependency Injection — полная регистрация
-
-```csharp
-// TechnicalSupportService.SUTP/Infrastructure/ServiceCollectionExtensions.cs
-public static class ServiceCollectionExtensions
-{
-    public static IServiceCollection AddApplicationServices(
-        this IServiceCollection services)
-    {
-        // Сервисы бизнес-логики
-        services.AddScoped<ITicketService, TicketService>();
-        services.AddScoped<ICommentService, CommentService>();
-        services.AddScoped<IAttachmentService, AttachmentService>();
-        services.AddScoped<IFileStorageService, LocalFileStorageService>();
-        services.AddScoped<INumberGeneratorService, NumberGeneratorService>();
-        services.AddScoped<IAuditService, AuditService>();
-        services.AddScoped<IProductService, ProductService>();
-        services.AddScoped<IDepartmentService, DepartmentService>();
-        services.AddScoped<IUserService, UserService>();
-        services.AddScoped<IDashboardService, DashboardService>();
-
-        // Фильтры
-        services.AddScoped<AuditActionFilter>();
-
-        return services;
-    }
-}
-```
-
----
-
-## 5.4. Конфигурация appsettings.json
+### SUTP/appsettings.json
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=support_db;Username=app_user;Password=***"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=support_db;Username=postgres;Password=postgres"
   },
   "FileStorage": {
-    "Provider": "Local",
-    "LocalPath": "/var/data/support-files",
+    "LocalPath": "C:\\dev\\TechnicalSupportService\\files",
     "MaxFileSizeBytes": 52428800,
     "MaxTotalSizePerTicketBytes": 524288000,
     "AllowedExtensions": [".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".png", ".zip"]
-  },
-  "TicketNumber": {
-    "NumberFormat": "{0:0000}_{1:00}_{2:D3}"
   },
   "Logging": {
     "LogLevel": {
@@ -224,27 +30,112 @@ public static class ServiceCollectionExtensions
 }
 ```
 
+### SUTP/appsettings.Development.json
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=support_db;Username=postgres;Password=postgres"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Information",
+      "Microsoft.EntityFrameworkCore": "Information"
+    }
+  }
+}
+```
+
 ---
 
-## 5.5. Конфигурация Services (DI-контейнер) в Program.cs
+## 5.2. Constants (Core/Constants/)
+
+### Core/Constants/Roles.cs
 
 ```csharp
+namespace TechnicalSupportService.Core.Constants;
+
+public static class Roles
+{
+    public const string Admin = "Admin";
+    public const string Engineer = "Engineer";
+    public const string Manager = "Manager";
+    public const string Applicant = "Applicant";
+
+    public static readonly string[] All = { Admin, Engineer, Manager, Applicant };
+}
+```
+
+---
+
+## 5.3. Infrastructure/ServiceCollectionExtensions.cs
+
+```csharp
+using TechnicalSupportService.Core.Interfaces;
+using TechnicalSupportService.SUTP.Services;
+
+namespace TechnicalSupportService.SUTP.Infrastructure;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    {
+        services.AddScoped<ITicketService, TicketService>();
+        services.AddScoped<ICommentService, CommentService>();
+        services.AddScoped<IAttachmentService, AttachmentService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<INumberGeneratorService, NumberGeneratorService>();
+        services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IDashboardService, DashboardService>();
+
+        return services;
+    }
+}
+```
+
+---
+
+## 5.4. Program.cs (полный файл)
+
+```csharp
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using TechnicalSupportService.Data.Context;
+using TechnicalSupportService.Data.Entities;
+using TechnicalSupportService.SUTP.Infrastructure;
+using TechnicalSupportService.SUTP.Middleware;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// MVC + Razor Runtime Compilation
-builder.Services.AddControllersWithViews()
-    .AddRazorRuntimeCompilation();
-
-// БД
+// === БД ===
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Identity
-builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options => { ... })
-    .AddEntityFrameworkStores<ApplicationDbContext>()
-    .AddDefaultTokenProviders();
+// === Identity ===
+builder.Services.AddIdentity<ApplicationUser, ApplicationRole>(options =>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequireLowercase = true;
+    options.Password.RequireUppercase = true;
+    options.Password.RequireNonAlphanumeric = false;
+    options.Password.RequiredLength = 8;
+    options.Password.RequiredUniqueChars = 4;
 
-// Cookie
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.AllowedForNewUsers = true;
+
+    options.User.RequireUniqueEmail = true;
+    options.SignIn.RequireConfirmedEmail = false;
+})
+.AddEntityFrameworkStores<ApplicationDbContext>()
+.AddDefaultTokenProviders();
+
+// === Cookie ===
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/Account/Login";
@@ -254,10 +145,14 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.SlidingExpiration = true;
 });
 
-// Бизнес-сервисы
+// === MVC ===
+builder.Services.AddControllersWithViews()
+    .AddRazorRuntimeCompilation();
+
+// === Бизнес-сервисы ===
 builder.Services.AddApplicationServices();
 
-// Анти-CSRF
+// === Antiforgery ===
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "RequestVerificationToken";
@@ -265,29 +160,244 @@ builder.Services.AddAntiforgery(options =>
 
 var app = builder.Build();
 
-// Seed ролей и администратора
+// === Seed данных ===
 using (var scope = app.Services.CreateScope())
 {
-    await SeedData.InitializeAsync(scope.ServiceProvider);
-    await SeedData.SeedAdminUserAsync(scope.ServiceProvider);
+    var services = scope.ServiceProvider;
+    await SeedData.InitializeAsync(services);
 }
 
-// Pipeline
+// === Pipeline ===
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Dashboard}/{action=Index}/{id?}");
 
 app.Run();
+
+// Для интеграционных тестов
+public partial class Program { }
+```
+
+---
+
+## 5.5. Infrastructure/SeedData.cs (с 4 тестовыми пользователями)
+
+```csharp
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using TechnicalSupportService.Core.Constants;
+using TechnicalSupportService.Core.Enums;
+using TechnicalSupportService.Data.Context;
+using TechnicalSupportService.Data.Entities;
+
+namespace TechnicalSupportService.SUTP.Infrastructure;
+
+public static class SeedData
+{
+    public static async Task InitializeAsync(IServiceProvider serviceProvider)
+    {
+        await SeedRolesAsync(serviceProvider);
+        await SeedTestUsersAsync(serviceProvider);
+        await SeedDepartmentsAsync(serviceProvider);
+        await SeedProductsAsync(serviceProvider);
+    }
+
+    private static async Task SeedRolesAsync(IServiceProvider sp)
+    {
+        var roleManager = sp.GetRequiredService<RoleManager<ApplicationRole>>();
+
+        foreach (var roleName in Roles.All)
+        {
+            if (!await roleManager.RoleExistsAsync(roleName))
+            {
+                await roleManager.CreateAsync(new ApplicationRole(roleName));
+            }
+        }
+    }
+
+    private static async Task SeedTestUsersAsync(IServiceProvider sp)
+    {
+        var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+
+        var users = new[]
+        {
+            new { Email = "admin@company.com", Password = "Admin@123", FullName = "Администратор Системы", Role = Roles.Admin, Position = "Системный администратор" },
+            new { Email = "engineer@company.com", Password = "Engineer@123", FullName = "Инженер Техподдержки", Role = Roles.Engineer, Position = "Инженер" },
+            new { Email = "manager@company.com", Password = "Manager@123", FullName = "Менеджер Проектов", Role = Roles.Manager, Position = "Менеджер" },
+            new { Email = "applicant@company.com", Password = "Applicant@123", FullName = "Иван Заявитель", Role = Roles.Applicant, Position = "Сотрудник" }
+        };
+
+        foreach (var u in users)
+        {
+            var existing = await userManager.FindByEmailAsync(u.Email);
+            if (existing != null) continue;
+
+            var user = new ApplicationUser
+            {
+                UserName = u.Email,
+                Email = u.Email,
+                FullName = u.FullName,
+                Position = u.Position,
+                IsActive = true,
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            var result = await userManager.CreateAsync(user, u.Password);
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(user, u.Role);
+            }
+        }
+    }
+
+    private static async Task SeedDepartmentsAsync(IServiceProvider sp)
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        if (await db.Departments.AnyAsync()) return;
+
+        db.Departments.AddRange(
+            new Department { Name = "IT-отдел", Description = "Информационные технологии" },
+            new Department { Name = "Отдел разработки", Description = "Разработка ПО" },
+            new Department { Name = "Отдел продаж", Description = "Продажи и маркетинг" }
+        );
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedProductsAsync(IServiceProvider sp)
+    {
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        if (await db.Products.AnyAsync()) return;
+
+        db.Products.AddRange(
+            new Product { Name = "CRM v3.2", ProductType = ProductType.Software, CurrentVersion = "3.2.1", Description = "Система управления клиентами" },
+            new Product { Name = "Контроллер Т-100", ProductType = ProductType.Hardware, CurrentVersion = "2.0", Description = "Промышленный контроллер" },
+            new Product { Name = "Встраиваемый модуль M1", ProductType = ProductType.Embedded, CurrentVersion = "1.5.3", Description = "Встраиваемый вычислительный модуль" }
+        );
+
+        await db.SaveChangesAsync();
+    }
+}
+```
+
+---
+
+## 5.6. Middleware/ExceptionHandlingMiddleware.cs
+
+```csharp
+using System.Net;
+using System.Text.Json;
+using TechnicalSupportService.Core.Exceptions;
+
+namespace TechnicalSupportService.SUTP.Middleware;
+
+public class ExceptionHandlingMiddleware
+{
+    private readonly RequestDelegate _next;
+    private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+
+    public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+    {
+        _next = next;
+        _logger = logger;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        try
+        {
+            await _next(context);
+        }
+        catch (NotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Not found");
+            context.Response.StatusCode = (int)HttpStatusCode.NotFound;
+            await WriteErrorResponse(context, ex.Message);
+        }
+        catch (ForbiddenException ex)
+        {
+            _logger.LogWarning(ex, "Forbidden");
+            context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            await WriteErrorResponse(context, ex.Message);
+        }
+        catch (BusinessRuleException ex)
+        {
+            _logger.LogWarning(ex, "Business rule violation");
+            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            await WriteErrorResponse(context, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unhandled exception");
+            context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+            await WriteErrorResponse(context, "Внутренняя ошибка сервера");
+        }
+    }
+
+    private static async Task WriteErrorResponse(HttpContext context, string message)
+    {
+        context.Response.ContentType = "application/json";
+        var response = JsonSerializer.Serialize(new { error = message });
+        await context.Response.WriteAsync(response);
+    }
+}
+```
+
+---
+
+## 5.7. Filters/AuditActionFilter.cs
+
+```csharp
+using Microsoft.AspNetCore.Mvc.Filters;
+using TechnicalSupportService.Core.Interfaces;
+
+namespace TechnicalSupportService.SUTP.Filters;
+
+public class AuditActionFilter : IAsyncActionFilter
+{
+    private readonly IAuditService _auditService;
+
+    public AuditActionFilter(IAuditService auditService)
+    {
+        _auditService = auditService;
+    }
+
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        var userId = context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (userId != null)
+        {
+            var controllerName = context.Controller.GetType().Name;
+            var actionName = context.ActionDescriptor.RouteValues["action"];
+            var ipAddress = context.HttpContext.Connection.RemoteIpAddress?.ToString();
+            var userAgent = context.HttpContext.Request.Headers["User-Agent"].ToString();
+
+            await _auditService.LogAsync(
+                $"{controllerName}.{actionName}",
+                Guid.Parse(userId),
+                ipAddress: ipAddress,
+                userAgent: userAgent);
+        }
+
+        await next();
+    }
+}
 ```

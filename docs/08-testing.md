@@ -1,285 +1,270 @@
 # Шаг 8. Тестирование
 
-## 8.1. Стратегия тестирования
-
-| Уровень | Что тестируем | Инструмент | Покрытие |
-|---------|---------------|------------|----------|
-| **Unit** | Бизнес-логика сервисов, валидация, нумерация | xUnit + Moq | Критичные методы |
-| **Integration** | Контроллеры + БД (in-memory или Testcontainers) | xUnit + WebApplicationFactory | Все эндпоинты |
-| **E2E** | Пользовательские сценарии | Playwright (опционально) | Критичные флоу |
-
 ---
 
-## 8.2. Структура тестовых проектов
+## 8.1. Создание тестовых проектов
 
-```
-tests/
-├── TechnicalSupportService.UnitTests/
-│   ├── Services/
-│   │   ├── TicketServiceTests.cs
-│   │   ├── NumberGeneratorServiceTests.cs
-│   │   ├── CommentServiceTests.cs
-│   │   ├── AttachmentServiceTests.cs
-│   │   └── FileStorageServiceTests.cs
-│   ├── Validation/
-│   │   └── TicketCreateDtoValidationTests.cs
-│   └── Helpers/
-│       └── TestDataBuilder.cs
-│
-└── TechnicalSupportService.IntegrationTests/
-    ├── Controllers/
-    │   ├── TicketsControllerTests.cs
-    │   ├── AccountControllerTests.cs
-    │   ├── AdminControllerTests.cs
-    │   └── DashboardControllerTests.cs
-    ├── Infrastructure/
-    │   ├── CustomWebApplicationFactory.cs
-    │   └── TestDatabaseFixture.cs
-    └── Fixtures/
-        └── TestDataSeeder.cs
+```powershell
+# Из корня решения
+mkdir tests
+
+dotnet new xunit -n TechnicalSupportService.UnitTests -o tests/TechnicalSupportService.UnitTests
+dotnet new xunit -n TechnicalSupportService.IntegrationTests -o tests/TechnicalSupportService.IntegrationTests
+
+dotnet sln add tests/TechnicalSupportService.UnitTests/TechnicalSupportService.UnitTests.csproj
+dotnet sln add tests/TechnicalSupportService.IntegrationTests/TechnicalSupportService.IntegrationTests.csproj
+
+# Ссылки для UnitTests
+dotnet add tests/TechnicalSupportService.UnitTests/TechnicalSupportService.UnitTests.csproj reference TechnicalSupportService.Core/TechnicalSupportService.Core.csproj
+dotnet add tests/TechnicalSupportService.UnitTests/TechnicalSupportService.UnitTests.csproj reference TechnicalSupportService.Data/TechnicalSupportService.Data.csproj
+dotnet add tests/TechnicalSupportService.UnitTests/TechnicalSupportService.UnitTests.csproj reference TechnicalSupportService.SUTP/TechnicalSupportService.SUTP.csproj
+
+# Ссылки для IntegrationTests
+dotnet add tests/TechnicalSupportService.IntegrationTests/TechnicalSupportService.IntegrationTests.csproj reference TechnicalSupportService.SUTP/TechnicalSupportService.SUTP.csproj
+
+# NuGet для IntegrationTests
+dotnet add tests/TechnicalSupportService.IntegrationTests/TechnicalSupportService.IntegrationTests.csproj package Microsoft.AspNetCore.Mvc.Testing
+dotnet add tests/TechnicalSupportService.IntegrationTests/TechnicalSupportService.IntegrationTests.csproj package Microsoft.EntityFrameworkCore.InMemory
+dotnet add tests/TechnicalSupportService.IntegrationTests/TechnicalSupportService.IntegrationTests.csproj package Moq
 ```
 
 ---
 
-## 8.3. Unit-тесты — примеры
+## 8.2. Unit-тест нумерации
 
-### NumberGeneratorServiceTests
+### tests/TechnicalSupportService.UnitTests/Services/NumberGeneratorServiceTests.cs
 
 ```csharp
-public class NumberGeneratorServiceTests
-{
-    [Fact]
-    public async Task GenerateNextNumber_FirstTicketOfMonth_Returns001()
-    {
-        // Arrange
-        var db = CreateInMemoryDb();
-        var service = new NumberGeneratorService(db);
+using Microsoft.EntityFrameworkCore;
+using TechnicalSupportService.Data.Context;
+using TechnicalSupportService.SUTP.Services;
 
-        // Act
+namespace TechnicalSupportService.UnitTests.Services;
+
+public class NumberGeneratorServiceTests : IDisposable
+{
+    private readonly ApplicationDbContext _db;
+
+    public NumberGeneratorServiceTests()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        _db = new ApplicationDbContext(options);
+    }
+
+    public void Dispose() => _db.Dispose();
+
+    [Fact]
+    public async Task GenerateNextNumber_First_Returns001()
+    {
+        var service = new NumberGeneratorService(_db);
         var number = await service.GenerateNextNumberAsync();
 
-        // Assert
-        var expectedPrefix = DateTime.UtcNow.ToString("yyyy_MM");
-        Assert.StartsWith(expectedPrefix, number);
+        var prefix = DateTime.UtcNow.ToString("yyyy_MM");
+        Assert.StartsWith(prefix, number);
         Assert.EndsWith("_001", number);
     }
 
     [Fact]
     public async Task GenerateNextNumber_Sequential_Returns002()
     {
-        var db = CreateInMemoryDb();
-        var service = new NumberGeneratorService(db);
+        var service = new NumberGeneratorService(_db);
 
         await service.GenerateNextNumberAsync();
         var number = await service.GenerateNextNumberAsync();
 
         Assert.EndsWith("_002", number);
     }
+
+    [Fact]
+    public async Task GenerateNextNumber_Multiple_ReturnsCorrectSequence()
+    {
+        var service = new NumberGeneratorService(_db);
+
+        for (int i = 0; i < 5; i++)
+            await service.GenerateNextNumberAsync();
+
+        var number = await service.GenerateNextNumberAsync();
+        Assert.EndsWith("_006", number);
+    }
 }
 ```
 
-### TicketServiceTests (Business Rules)
+---
+
+## 8.3. Unit-тест бизнес-логики
+
+### tests/TechnicalSupportService.UnitTests/Services/TicketServiceTests.cs
 
 ```csharp
-public class TicketServiceTests
+using Microsoft.EntityFrameworkCore;
+using TechnicalSupportService.Core.DTOs;
+using TechnicalSupportService.Core.Enums;
+using TechnicalSupportService.Core.Exceptions;
+using TechnicalSupportService.Data.Context;
+using TechnicalSupportService.Data.Entities;
+using TechnicalSupportService.SUTP.Services;
+
+namespace TechnicalSupportService.UnitTests.Services;
+
+public class TicketServiceTests : IDisposable
 {
-    [Fact]
-    public async Task CreateAsync_ValidDto_TicketCreatedWithCorrectStatus()
+    private readonly ApplicationDbContext _db;
+    private readonly Guid _adminId = Guid.NewGuid();
+    private readonly Guid _engineerId = Guid.NewGuid();
+    private readonly Guid _applicantId = Guid.NewGuid();
+    private readonly Guid _productId = Guid.NewGuid();
+
+    public TicketServiceTests()
     {
-        // Arrange
-        var service = CreateService();
-        var dto = new TicketCreateDto { Title = "Test", ... };
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        _db = new ApplicationDbContext(options);
 
-        // Act
-        var result = await service.CreateAsync(dto, userId);
+        SeedTestData();
+    }
 
-        // Assert
-        Assert.Equal("New", result.Status);
-        Assert.NotNull(result.Number);
+    private void SeedTestData()
+    {
+        _db.Products.Add(new Product { Id = _productId, Name = "Test Product", ProductType = ProductType.Software });
+        _db.TicketNumberCounters.Add(new TicketNumberCounter { YearMonth = DateTime.UtcNow.ToString("yyyy-MM"), LastNumber = 0 });
+        _db.SaveChanges();
+    }
+
+    public void Dispose() => _db.Dispose();
+
+    private TicketService CreateService()
+    {
+        var numberGen = new NumberGeneratorService(_db);
+        var audit = new AuditService(_db);
+        return new TicketService(_db, numberGen, audit);
     }
 
     [Fact]
-    public async Task ChangeStatusAsync_InvalidTransition_ThrowsBusinessRuleException()
+    public async Task CreateAsync_Valid_ReturnsTicketWithNumber()
     {
-        // Arrange
         var service = CreateService();
-        var ticket = await CreateTicketInDb(status: TicketStatus.New);
+        var dto = new TicketCreateDto
+        {
+            Title = "Test Ticket",
+            Description = "Description",
+            ProductId = _productId,
+            Priority = Priority.Medium,
+            Category = Category.Bug,
+            Source = Source.Portal
+        };
 
-        // Act & Assert
-        await Assert.ThrowsAsync<BusinessRuleException>(
-            () => service.ChangeStatusAsync(ticket.Id, TicketStatus.Resolved, engineerId));
+        var result = await service.CreateAsync(dto, _applicantId);
+
+        Assert.NotNull(result);
+        Assert.NotEmpty(result.Number);
+        Assert.Equal("Test Ticket", result.Title);
+        Assert.Equal(TicketStatus.New, result.Status);
     }
 
     [Fact]
-    public async Task ChangeStatusAsync_EngineerCanNotAssign_ThrowsForbidden()
+    public async Task ChangeStatusAsync_InvalidTransition_Throws()
     {
-        // Arrange
         var service = CreateService();
-        var ticket = await CreateTicketInDb(status: TicketStatus.New);
+        var dto = new TicketCreateDto
+        {
+            Title = "Test", Description = "Desc", ProductId = _productId,
+            Priority = Priority.Low, Category = Category.Bug, Source = Source.Portal
+        };
+        var ticket = await service.CreateAsync(dto, _applicantId);
 
-        // Act & Assert
         await Assert.ThrowsAsync<BusinessRuleException>(
-            () => service.ChangeStatusAsync(ticket.Id, TicketStatus.Assigned, engineerId));
+            () => service.ChangeStatusAsync(ticket.Id, TicketStatus.Resolved, null, _engineerId));
     }
 
     [Fact]
     public async Task DeleteAsync_NonAdmin_ThrowsForbidden()
     {
         var service = CreateService();
-        var ticket = await CreateTicketInDb();
+        var dto = new TicketCreateDto
+        {
+            Title = "Test", Description = "Desc", ProductId = _productId,
+            Priority = Priority.Low, Category = Category.Bug, Source = Source.Portal
+        };
+        var ticket = await service.CreateAsync(dto, _applicantId);
 
         await Assert.ThrowsAsync<ForbiddenException>(
-            () => service.DeleteAsync(ticket.Id, applicantId));
+            () => service.DeleteAsync(ticket.Id, _applicantId));
     }
 }
 ```
 
 ---
 
-## 8.4. Integration-тесты — примеры
+## 8.4. Integration-тест
 
-### CustomWebApplicationFactory
+### tests/TechnicalSupportService.IntegrationTests/CustomWebApplicationFactory.cs
 
 ```csharp
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TechnicalSupportService.Data.Context;
+
+namespace TechnicalSupportService.IntegrationTests;
+
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.ConfigureServices(services =>
         {
-            // Заменяем реальную БД на InMemory
             var descriptor = services.SingleOrDefault(
                 d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
             if (descriptor != null) services.Remove(descriptor);
 
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseInMemoryDatabase("TestDb"));
-
-            // Заменяем файловое хранилище на in-memory
-            services.AddScoped<IFileStorageService, InMemoryFileStorageService>();
         });
     }
 }
 ```
 
-### TicketsControllerTests
+### tests/TechnicalSupportService.IntegrationTests/Controllers/AccountControllerTests.cs
 
 ```csharp
-public class TicketsControllerTests : IClassFixture<CustomWebApplicationFactory>
+namespace TechnicalSupportService.IntegrationTests.Controllers;
+
+public class AccountControllerTests : IClassFixture<CustomWebApplicationFactory>
 {
     private readonly HttpClient _client;
 
-    public TicketsControllerTests(CustomWebApplicationFactory factory)
+    public AccountControllerTests(CustomWebApplicationFactory factory)
     {
         _client = factory.CreateClient();
     }
 
     [Fact]
-    public async Task Index_Authorized_ReturnsOk()
+    public async Task Login_Get_ReturnsOk()
     {
-        // Act
-        var response = await _client.GetAsync("/Tickets");
-
-        // Assert
+        var response = await _client.GetAsync("/Account/Login");
         response.EnsureSuccessStatusCode();
-        var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Заявки", html);
     }
 
     [Fact]
-    public async Task Create_Post_ValidData_RedirectsToDetails()
+    public async Task Dashboard_WithoutAuth_RedirectsToLogin()
     {
-        // Arrange
-        var formData = new Dictionary<string, string>
-        {
-            ["Title"] = "Тестовая заявка",
-            ["Description"] = "Описание",
-            ["ProductId"] = "...",
-            ["Priority"] = "Medium",
-            ["Category"] = "Bug",
-            ["Source"] = "Portal"
-        };
+        var client = new CustomWebApplicationFactory().CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
 
-        // Act
-        var response = await _client.PostAsync("/Tickets/Create",
-            new FormUrlEncodedContent(formData));
-
-        // Assert
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Details_UnauthorizedUser_ReturnsRedirect()
-    {
-        // Проверка что неавторизованный перенаправляется на Login
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
-        var response = await client.GetAsync($"/Tickets/{Guid.NewGuid()}");
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var response = await client.GetAsync("/Dashboard");
+        Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
     }
 }
 ```
 
 ---
 
-## 8.5. Тестовые сценарии (checklist)
+## 8.5. Запуск тестов
 
-### Авторизация
-- [ ] Успешный вход
-- [ ] Неверный пароль → ошибка
-- [ ] Заблокированный пользователь → ошибка
-- [ ] Регистрация нового пользователя
-- [ ] Сброс пароля
-
-### Заявки (CRUD)
-- [ ] Создание заявки с валидными данными → номер генерируется
-- [ ] Создание с пустым заголовком → ошибка валидации
-- [ ] Просмотр деталей — владелец видит свою заявку
-- [ ] Просмотр деталей — заявитель не видит чужую заявку (403)
-- [ ] Редактирование — инженер может редактировать назначенную заявку
-- [ ] Редактирование — заявитель не может редактировать (403)
-- [ ] Удаление — только Admin
-- [ ] Мягкое удаление — заявка не отображается в списке
-
-### Статусы
-- [ ] New → Assigned (Admin/Manager)
-- [ ] Assigned → InProgress (Engineer)
-- [ ] InProgress → Resolved (Engineer, заполняет Resolution)
-- [ ] Resolved → Closed (Applicant/Manager)
-- [ ] Resolved → Reopened (Applicant/Manager)
-- [ ] New → Resolved — запрещён (недопустимый переход)
-- [ ] Engineer → New → Assigned — запрещён (нет прав)
-
-### Нумерация
-- [ ] Первая заявка месяца → 2026_08_001
-- [ ] Вторая заявка месяца → 2026_08_002
-- [ ] 100-я заявка → 2026_08_100
-- [ ] Конкурентное создание — номера не дублируются
-
-### Файлы
-- [ ] Загрузка допустимого файла
-- [ ] Загрузка файла > 50 МБ → ошибка
-- [ ] Загрузка .exe файла → ошибка
-- [ ] Скачивание файла
-- [ ] Удаление файла — только загрузивший / Admin
-
-### Комментарии
-- [ ] Добавление комментария
-- [ ] Внутренний комментарий — заявитель не видит
-- [ ] Редактирование — только автор
-- [ ] Удаление — автор / Admin
-
-### История
-- [ ] Создание заявки → запись Creation
-- [ ] Изменение статуса → запись StatusChange
-- [ ] Изменение поля → запись Update
-- [ ] Добавление комментария → запись Comment
-- [ ] Загрузка файла → запись FileAttach
-- [ ] Назначение → запись Assignment
-
-### Аудит
-- [ ] Каждое действие записывается в AuditLog
-- [ ] Поля UserId, Action, EntityName, EntityId заполнены
-- [ ] IP-адрес записывается
+```powershell
+dotnet test
+```
