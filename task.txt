@@ -5,10 +5,80 @@
 # ТЕХНИЧЕСКОЕ ЗАДАНИЕ  
 на разработку веб-приложения «Система управления технической поддержкой» (СУТП)
 имя решения TechnicalSupportService.
-применить стуктуру TechnicalSupportService.Data - классы данных
-TechnicalSupportService.SUTP - пользовательский интерфейс и бизнес логика, сервисы.
 
+## 0. Структура решения (проекты)
 
+Решение (`TechnicalSupportService.sln`) состоит из трёх проектов:
+
+| Проект | Тип | Назначение |
+|--------|-----|------------|
+| **TechnicalSupportService.Data** | Class Library (.NET 10) | Сущности (Entities), DbContext, миграции EF Core, enum'ы, конфигурации маппинга (Fluent API) |
+| **TechnicalSupportService.Core** | Class Library (.NET 10) | Интерфейсы сервисов (IService), DTO/ViewModels, бизнес-правила и валидация, вспомогательные утилиты. **Не зависит** от Data и SUTP |
+| **TechnicalSupportService.SUTP** | ASP.NET Core MVC Web App (.NET 10) | Контроллеры, Razor Views, реализации сервисов, wwwroot (CSS/JS), конфигурация DI, Identity, запуск приложения |
+
+### Зависимости между проектами
+
+```
+TechnicalSupportService.Core  (нет зависимостей)
+        ↑
+TechnicalSupportService.Data  (зависит от Core — использует интерфейсы и DTO)
+        ↑
+TechnicalSupportService.SUTP  (зависит от Data и Core — подключает DI, реализует сервисы)
+```
+
+### Структура папок внутри проектов
+
+```
+TechnicalSupportService.Core/
+├── Interfaces/           # IService-интерфейсы (ITicketService, IFileStorageService и т.д.)
+├── DTOs/                 # Объекты передачи данных (TicketDto, TicketCreateDto и т.д.)
+├── Enums/                # Общие enum'ы (при дублировании с Data — источник истины в Core)
+├── Constants/            # Константы (роли, лимиты файлов, допустимые расширения)
+├── Validation/           # FluentValidation-валидаторы (опционально)
+└── Helpers/              # Вспомогательные утилиты (форматирование номера и т.д.)
+
+TechnicalSupportService.Data/
+├── Entities/             # Классы сущностей (Ticket, TicketHistory, Attachment, Product, Comment, ...)
+├── Enums/                # Enum'ы, специфичные для БД (если не вынесены в Core)
+├── Configurations/       # Fluent API-конфигурации (IEntityTypeConfiguration<T>)
+├── Migrations/           # Миграции EF Core
+├── Context/              # ApplicationDbContext
+└── Extensions/           # Методы расширения для DbContext
+
+TechnicalSupportService.SUTP/
+├── Controllers/          # MVC-контроллеры (TicketsController, DashboardController, ...)
+├── Services/             # Реализации сервисов из Core.Interfaces
+├── ViewModels/           # View-модели (если отличаются от DTO)
+├── Views/                # Razor Views (по папкам контроллеров + Shared/)
+│   ├── Shared/           # _Layout, _ValidationScriptsPartial, Error
+│   ├── Dashboard/
+│   ├── Tickets/
+│   ├── Account/
+│   └── Admin/
+├── wwwroot/
+│   ├── css/              # Кастомные стили + темы (light/dark)
+│   ├── js/               # Кастомные скрипты (drag-and-drop загрузки, HTMX и т.д.)
+│   ├── lib/              # Bootstrap, jQuery (через LibMan или npm)
+│   └── images/           # Логотип, иконки
+├── Filters/              # Action filters (аудит, обработка ошибок)
+├── Middleware/            # Кастомные middleware (логирование, обработка исключений)
+├── Infrastructure/       # Регистрация DI, конфигурация Identity
+├── appsettings.json
+├── Program.cs
+└── appsettings.Development.json
+```
+
+### Ключевые NuGet-пакеты
+
+| Пакет | Назначение |
+|-------|------------|
+| `Microsoft.AspNetCore.Identity.EntityFrameworkCore` | Identity + EF Core интеграция |
+| `Npgsql.EntityFrameworkCore.PostgreSQL` | Провайдер EF Core для PostgreSQL |
+| `Microsoft.EntityFrameworkCore.Tools` | Миграции (dotnet ef) |
+| `Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation` | Горячая перезагрузка Razor при разработке |
+| `Minio` или `AWSSDK.S3` (опционально) | S3-хранилище для файлов (если не локальный диск) |
+
+---
 
 ## 1. Введение
 ### 1.1. Назначение
@@ -301,64 +371,218 @@ TechnicalSupportService.SUTP - пользовательский интерфей
 
 ---
 
-## 14. Приложение: ER-диаграмма (концептуальная)
+## 14. Приложение: Полное описание всех таблиц БД
+
+### 14.1. Таблица `Users` (расширение ASP.NET Identity)
+
+Наследуется от `IdentityUser<Guid>`. Стандартные поля Identity (Id, UserName, Email, PasswordHash, PhoneNumber и др.) дополняются кастомными.
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Уникальный идентификатор (наследуется от IdentityUser) |
+| **FullName** | String(200) | Да | ФИО пользователя (Фамилия Имя Отчество) |
+| **DepartmentId** | UUID (FK) | Нет | Ссылка на отдел (таблица `Departments`) |
+| **Position** | String(100) | Нет | Должность |
+| **IsActive** | Boolean | Да | Активен/заблокирован (по умолчанию `true`) |
+| **CreatedAt** | Timestamp | Да | Дата создания учётной записи (UTC) |
+| **UpdatedAt** | Timestamp | Да | Дата последнего обновления профиля (UTC) |
+
+> Примечание: поля `Email`, `PhoneNumber`, `UserName`, `EmailConfirmed`, `PasswordHash` и др. наследуются от `IdentityUser<Guid>` и не дублируются.
+
+---
+
+### 14.2. Таблица `Departments` (справочник отделов)
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Уникальный идентификатор |
+| **Name** | String(200) | Да | Наименование отдела (уникальное) |
+| **Description** | String(500) | Нет | Описание отдела |
+| **IsActive** | Boolean | Да | Активен/архив (по умолчанию `true`) |
+| **CreatedAt** | Timestamp | | Дата создания записи |
+
+---
+
+### 14.3. Таблица `Products` (справочник продуктов)
+
+Вынесена из Tickets для нормализации. Ранее `ProductName` и `ProductType` хранились прямо в заявке — теперь это FK.
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Уникальный идентификатор |
+| **Name** | String(200) | Да | Наименование продукта (например, "CRM v3.2", "Контроллер Т-100") |
+| **ProductType** | Enum | Да | `Software` / `Hardware` / `Embedded` |
+| **CurrentVersion** | String(20) | Нет | Текущая актуальная версия продукта |
+| **Description** | String(500) | Нет | Краткое описание продукта |
+| **IsActive** | Boolean | Да | Активен/снят с поддержки (по умолчанию `true`) |
+| **CreatedAt** | Timestamp | Да | Дата создания записи |
+| **UpdatedAt** | Timestamp | Да | Дата последнего обновления |
+
+---
+
+### 14.4. Таблица `Tickets` (заявки) — основная сущность
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Внутренний идентификатор |
+| **Number** | String(50) | Да | Внешний номер формата `ГГГГ_ММ_XXX` (unique index) |
+| **Title** | String(200) | Да | Краткий заголовок заявки |
+| **Description** | Text | Да | Полное описание проблемы |
+| **ProductId** | UUID (FK -> Products) | Да | Ссылка на продукт (заменяет старые ProductType + ProductName) |
+| **Version** | String(20) | Нет | Версия продукта, к которой относится заявка (может отличаться от CurrentVersion) |
+| **Priority** | Enum | Да | `Low` / `Medium` / `High` / `Critical` |
+| **Status** | Enum | Да | `New` / `Assigned` / `InProgress` / `Resolved` / `Closed` / `Reopened` |
+| **Category** | Enum | Да | `Bug` / `Feature` / `Support` / `Incident` |
+| **Impact** | Enum | Нет | `Individual` / `Team` / `Department` / `Company` |
+| **Source** | Enum | Да | `Email` / `Phone` / `Portal` / `Internal` |
+| **AssignedToUserId** | UUID (FK -> Users) | Нет | Исполнитель (инженер). Назначается менеджером/админом |
+| **CreatedByUserId** | UUID (FK -> Users) | Да | Кто создал заявку (автозаполнение) |
+| **CreatedAt** | Timestamp | Да | Дата создания (UTC) |
+| **UpdatedByUserId** | UUID (FK -> Users) | Да | Кто последним изменял (автозаполнение) |
+| **UpdatedAt** | Timestamp | Да | Дата последнего изменения (UTC) |
+| **ClosedAt** | Timestamp | Нет | Дата закрытия (заполняется при статусе `Closed`) |
+| **Resolution** | Text | Нет | Описание решения (заполняется при `Resolved` / `Closed`) |
+| **TimeSpentMinutes** | Integer | Нет | Затраченное время в минутах (заполняется инженером) |
+| **ParentTicketId** | UUID (FK -> Tickets) | Нет | Ссылка на родительскую заявку (для связи эпик/подзадача) |
+| **IsDeleted** | Boolean | Да | Мягкое удаление (по умолчанию `false`) |
+| **DeletedAt** | Timestamp | Нет | Дата удаления |
+| **DeletedByUserId** | UUID (FK -> Users) | Нет | Кто удалил (заполняется при IsDeleted = true) |
+
+> Изменение по сравнению с черновиком: `ProductName` (String) и `ProductType` (Enum) заменены на `ProductId` (FK -> Products). Это обеспечивает целостность справочника и возможность фильтрации по продукту.
+
+---
+
+### 14.5. Таблица `Comments` (комментарии к заявкам)
+
+Вынесена из `TicketHistory` в отдельную сущность для удобства отображения и поиска.
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Уникальный идентификатор |
+| **TicketId** | UUID (FK -> Tickets) | Да | Заявка, к которой относится комментарий |
+| **AuthorUserId** | UUID (FK -> Users) | Да | Автор комментария |
+| **Content** | Text | Да | Текст комментария |
+| **IsInternal** | Boolean | Да | Внутренний комментарий (виден только инженерам и менеджерам, не виден заявителю). По умолчанию `false` |
+| **IsEdited** | Boolean | Да | Был ли отредактирован (по умолчанию `false`) |
+| **EditedAt** | Timestamp | Нет | Дата последнего редактирования |
+| **CreatedAt** | Timestamp | Да | Дата создания (UTC) |
+| **IsDeleted** | Boolean | Да | Мягкое удаление (по умолчанию `false`) |
+
+> При добавлении комментария в `TicketHistory` создаётся запись с `ChangeType = Comment` (ссылка на Id комментария в `NewValue`), но сам текст хранится в `Comments`.
+
+---
+
+### 14.6. Таблица `TicketHistory` (история изменений)
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Уникальный идентификатор записи истории |
+| **TicketId** | UUID (FK -> Tickets) | Да | Ссылка на заявку |
+| **ChangedByUserId** | UUID (FK -> Users) | Да | Кто изменил |
+| **ChangedAt** | Timestamp | Да | Дата изменения (UTC) |
+| **FieldName** | String(50) | Нет | Название изменённого поля (для `ChangeType = Update` / `StatusChange`) |
+| **OldValue** | Text | Нет | Старое значение (в виде строки). Null для первичного создания |
+| **NewValue** | Text | Нет | Новое значение (в виде строки) |
+| **ChangeType** | Enum | Да | `Update` / `Comment` / `FileAttach` / `StatusChange` / `Assignment` / `Creation` |
+| **CommentId** | UUID (FK -> Comments) | Нет | Ссылка на комментарий (если `ChangeType = Comment`) |
+| **AttachmentId** | UUID (FK -> Attachments) | Нет | Ссылка на вложение (если `ChangeType = FileAttach`) |
+
+> Дополнение: новые значения `ChangeType`:
+> - `Creation` — создание заявки (первая запись в истории);
+> - `Assignment` — назначение/смена исполнителя.
+> Добавлены FK на `CommentId` и `AttachmentId` для удобства навигации из истории.
+
+---
+
+### 14.7. Таблица `Attachments` (вложения/файлы)
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Идентификатор |
+| **TicketId** | UUID (FK -> Tickets) | Да | Заявка |
+| **FileName** | String(255) | Да | Оригинальное имя файла |
+| **StoredFileName** | String(255) | Да | Уникальное имя на диске (GUID + расширение) |
+| **FilePath** | String(500) | Да | Относительный путь к файлу (от корня хранилища) |
+| **FileSizeBytes** | BigInt | Да | Размер в байтах |
+| **MimeType** | String(100) | Да | MIME-тип (например, `application/pdf`) |
+| **UploadedByUserId** | UUID (FK -> Users) | Да | Кто загрузил |
+| **UploadedAt** | Timestamp | Да | Дата загрузки |
+| **IsDeleted** | Boolean | Да | Мягкое удаление (по умолчанию `false`) |
+| **DeletedAt** | Timestamp | Нет | Дата удаления |
+
+---
+
+### 14.8. Таблица `TicketNumberCounter` (счётчик нумерации)
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **YearMonth** | String(7) (PK) | Да | Ключ формата `ГГГГ-ММ` (например, `2026-08`) |
+| **LastNumber** | Integer | Да | Последний использованный порядковый номер (по умолчанию 0) |
+
+---
+
+### 14.9. Таблица `AuditLog` (аудит действий пользователей)
+
+Отдельная таблица для логирования всех действий (§9 ТЗ — аудит). В отличие от `TicketHistory`, хранит **все** действия пользователей, не только изменения заявок.
+
+| Поле | Тип данных | Обязательное | Описание |
+|------|-----------|--------------|----------|
+| **Id** | UUID (PK) | Да | Уникальный идентификатор |
+| **UserId** | UUID (FK -> Users) | Да | Кто выполнил действие |
+| **Action** | String(100) | Да | Тип действия (например, `Ticket.Create`, `User.Block`, `File.Upload`) |
+| **EntityName** | String(100) | Нет | Имя сущности (`Ticket`, `User`, `Attachment` и т.д.) |
+| **EntityId** | UUID | Нет | Идентификатор затронутой сущности |
+| **Details** | Text | Нет | Дополнительные детали (JSON или текст) |
+| **IpAddress** | String(45) | Нет | IP-адрес пользователя |
+| **UserAgent** | String(500) | Нет | User-Agent браузера |
+| **CreatedAt** | Timestamp | Да | Дата и время действия (UTC) |
+
+---
+
+### 14.10. Перечень enum-типов
+
+| Enum | Значения | Используется в |
+|------|----------|----------------|
+| **ProductType** | `Software`, `Hardware`, `Embedded` | Products |
+| **Priority** | `Low`, `Medium`, `High`, `Critical` | Tickets |
+| **TicketStatus** | `New`, `Assigned`, `InProgress`, `Resolved`, `Closed`, `Reopened` | Tickets |
+| **Category** | `Bug`, `Feature`, `Support`, `Incident` | Tickets |
+| **Impact** | `Individual`, `Team`, `Department`, `Company` | Tickets |
+| **Source** | `Email`, `Phone`, `Portal`, `Internal` | Tickets |
+| **ChangeType** | `Creation`, `Update`, `StatusChange`, `Assignment`, `Comment`, `FileAttach` | TicketHistory |
+
+---
+
+### 14.11. ER-диаграмма (связи)
 
 ```
-Users (IdentityUser расширенный)
-  - Id (UUID)
-  - FullName
-  - Department
-  - PhoneNumber
-  - ... (стандартные поля Identity)
+┌─────────────┐       ┌──────────────┐       ┌─────────────────┐
+│ Departments  │1────N│    Users      │1────N│   AuditLog      │
+└─────────────┘       │ (IdentityUser)│       └─────────────────┘
+                      └──────┬───────┘
+                             │
+                 ┌───────────┼───────────┐
+                 │1          │1          │1
+                 │           │           │
+          ┌──────┴──────┐    │    ┌──────┴──────┐
+          │  Comments   │    │    │ Attachments │
+          └──────┬──────┘    │    └──────┬──────┘
+                 │N          │           │N
+                 │           │           │
+                 └─────┐N    │    N┌─────┘
+                       │     │     │
+                 ┌─────┴─────┴─────┴──────┐
+                 │        Tickets          │
+                 │  (PK: Id, Unique: Number)│
+                 └─────┬───────────────┬───┘
+                       │1              │1
+                       │               │
+                  N┌───┴────┐    N┌────┴───────┐
+                   │Ticket  │    │TicketNumber │
+                   │History │    │Counter      │
+                   └────────┘    └─────────────┘
 
-Tickets
-  - Id (UUID, PK)
-  - Number (string, unique)
-  - Title
-  - Description
-  - ProductType (enum)
-  - ProductName
-  - Version (nullable)
-  - Priority (enum)
-  - Status (enum)
-  - Category (enum)
-  - Impact (enum, nullable)
-  - Source (enum)
-  - AssignedToUserId (FK -> Users, nullable)
-  - CreatedByUserId (FK -> Users)
-  - CreatedAt (timestamp)
-  - UpdatedByUserId (FK -> Users)
-  - UpdatedAt (timestamp)
-  - ClosedAt (nullable)
-  - Resolution (nullable)
-  - TimeSpentMinutes (nullable)
-  - ParentTicketId (FK -> Tickets, nullable)
-  - IsDeleted (bool)
-  - DeletedAt (nullable)
-
-TicketHistory
-  - Id (UUID, PK)
-  - TicketId (FK -> Tickets)
-  - ChangedByUserId (FK -> Users)
-  - ChangedAt (timestamp)
-  - FieldName
-  - OldValue (text)
-  - NewValue (text)
-  - ChangeType (enum)
-
-Attachments
-  - Id (UUID, PK)
-  - TicketId (FK -> Tickets)
-  - FileName
-  - StoredFileName
-  - FilePath
-  - FileSizeBytes
-  - MimeType
-  - UploadedByUserId (FK -> Users)
-  - UploadedAt (timestamp)
-  - IsDeleted (bool)
-
-TicketNumberCounter
-  - YearMonth (string(7), PK)  // например, "2026-08"
-  - LastNumber (int)
+┌─────────────┐
+│  Products   │1────N│ Tickets │ (через ProductId FK)
+└─────────────┘
 ```
