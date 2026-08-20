@@ -1,0 +1,10 @@
+@model IEnumerable<TechnicalSupportService.Core.DTOs.DepartmentDto>
+@{ ViewData["Title"] = "Отделы"; }
+<h2>Отделы</h2>
+<table class="table table-hover">
+    <thead><tr><th>Название</th><th>Описание</th><th>Статус</th></tr></thead>
+    <tbody>
+    @foreach (var d in Model)
+    { <tr><td>@d.Name</td><td>@(d.Description ?? "—")</td><td>@(d.IsActive ? "✅" : "🚫")</td></tr> }
+    </tbody>
+</table>

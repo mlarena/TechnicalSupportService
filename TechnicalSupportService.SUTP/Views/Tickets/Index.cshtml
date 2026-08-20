@@ -1,0 +1,46 @@
+@model TechnicalSupportService.Core.DTOs.PagedResult<TechnicalSupportService.Core.DTOs.TicketListItemDto>
+@using TechnicalSupportService.Core.DTOs
+@{ ViewData["Title"] = "Заявки"; var filter = ViewBag.Filter as TicketFilterDto ?? new TicketFilterDto(); }
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Заявки</h2>
+    <a asp-action="Create" class="btn btn-primary">+ Создать заявку</a>
+</div>
+
+<form method="get" class="card mb-4"><div class="card-body">
+    <div class="row g-2">
+        <div class="col-md-2"><select name="Status" class="form-select form-select-sm"><option value="">Все статусы</option>
+            @foreach (var s in Enum.GetValues<TechnicalSupportService.Core.Enums.TicketStatus>())
+            { <option value="@s" selected="@(filter.Status == s)">@s</option> }
+        </select></div>
+        <div class="col-md-2"><select name="Priority" class="form-select form-select-sm"><option value="">Все приоритеты</option>
+            @foreach (var p in Enum.GetValues<TechnicalSupportService.Core.Enums.Priority>())
+            { <option value="@p" selected="@(filter.Priority == p)">@p</option> }
+        </select></div>
+        <div class="col-md-4"><input type="text" name="Search" class="form-control form-control-sm" placeholder="Поиск..." value="@filter.Search" /></div>
+        <div class="col-md-2"><button type="submit" class="btn btn-outline-primary btn-sm w-100">Найти</button></div>
+    </div>
+</div></form>
+
+<table class="table table-hover">
+    <thead><tr><th>Номер</th><th>Заголовок</th><th>Статус</th><th>Приоритет</th><th>Продукт</th><th>Исполнитель</th><th>Дата</th></tr></thead>
+    <tbody>
+    @foreach (var t in Model.Items)
+    {
+        <tr onclick="location.href='@Url.Action("Details", new { id = t.Id })'" style="cursor:pointer">
+            <td>@t.Number</td><td>@t.Title</td>
+            <td><span class="badge bg-@(t.Status == TechnicalSupportService.Core.Enums.TicketStatus.New ? "info" : t.Status == TechnicalSupportService.Core.Enums.TicketStatus.InProgress ? "warning" : t.Status == TechnicalSupportService.Core.Enums.TicketStatus.Resolved ? "success" : "secondary")">@t.Status</span></td>
+            <td><span class="badge bg-@(t.Priority == TechnicalSupportService.Core.Enums.Priority.Critical ? "danger" : t.Priority == TechnicalSupportService.Core.Enums.Priority.High ? "warning" : "info")">@t.Priority</span></td>
+            <td>@t.ProductName</td><td>@(t.AssignedToUserName ?? "—")</td><td>@t.CreatedAt.ToString("dd.MM.yyyy")</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@if (Model.TotalPages > 1)
+{
+    <nav><ul class="pagination justify-content-center">
+        @for (int i = 1; i <= Model.TotalPages; i++)
+        { <li class="page-item @(i == Model.Page ? "active" : "")"><a class="page-link" href="?page=@i&status=@filter.Status&priority=@filter.Priority&search=@filter.Search">@i</a></li> }
+    </ul></nav>
+}

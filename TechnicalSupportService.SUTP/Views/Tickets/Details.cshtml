@@ -1,0 +1,98 @@
+@model TechnicalSupportService.Core.DTOs.TicketDto
+@using TechnicalSupportService.Core.DTOs
+@using TechnicalSupportService.Core.Enums
+@using TechnicalSupportService.Core.Constants
+@{ ViewData["Title"] = $"Заявка {Model.Number}";
+    var comments = ViewBag.Comments as List<CommentDto> ?? new();
+    var attachments = ViewBag.Attachments as List<AttachmentDto> ?? new();
+    var history = ViewBag.History as List<TicketHistoryDto> ?? new();
+    var currentRole = ViewBag.CurrentRole as string ?? "";
+    var currentUserId = (Guid)ViewBag.CurrentUserId;
+}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+        <h2>@Model.Number — @Model.Title</h2>
+        <span class="badge bg-@(Model.Status == TicketStatus.New ? "info" : Model.Status == TicketStatus.InProgress ? "warning" : Model.Status == TicketStatus.Resolved ? "success" : "secondary")">@Model.Status</span>
+        <span class="badge bg-@(Model.Priority == Priority.Critical ? "danger" : Model.Priority == Priority.High ? "warning" : "info")">@Model.Priority</span>
+    </div>
+    <div>
+        @if (Model.Status == TicketStatus.Resolved && (currentRole == Roles.Applicant || currentRole == Roles.Manager || currentRole == Roles.Admin))
+        { <form asp-action="Close" asp-route-id="@Model.Id" method="post" class="d-inline"><button type="submit" class="btn btn-success btn-sm">Закрыть</button></form> }
+        @if ((Model.Status == TicketStatus.Closed || Model.Status == TicketStatus.Resolved) && (currentRole == Roles.Applicant || currentRole == Roles.Manager || currentRole == Roles.Admin))
+        { <form asp-action="Reopen" asp-route-id="@Model.Id" method="post" class="d-inline"><button type="submit" class="btn btn-warning btn-sm">Переоткрыть</button></form> }
+        @if (currentRole == Roles.Admin || currentRole == Roles.Manager)
+        { <form asp-action="Assign" asp-route-id="@Model.Id" method="post" class="d-inline">
+            <select name="assigneeId" class="form-select form-select-sm d-inline" style="width:auto"><option value="">Снять</option></select>
+            <button type="submit" class="btn btn-outline-primary btn-sm">Назначить</button>
+          </form> }
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Редактировать</a>
+        @if (currentRole == Roles.Admin)
+        { <form asp-action="Delete" asp-route-id="@Model.Id" method="post" class="d-inline" onsubmit="return confirm('Удалить?')"><button type="submit" class="btn btn-danger btn-sm">Удалить</button></form> }
+    </div>
+</div>
+
+<ul class="nav nav-tabs" id="ticketTabs">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#info">Информация</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#files">Файлы (@attachments.Count)</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#comments">Комментарии (@comments.Count)</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#history">История</a></li>
+</ul>
+
+<div class="tab-content mt-3">
+    <div class="tab-pane fade show active" id="info">
+        <div class="row"><div class="col-md-6"><dl class="row">
+            <dt class="col-sm-4">Продукт</dt><dd class="col-sm-8">@Model.ProductName (@Model.ProductType)</dd>
+            <dt class="col-sm-4">Версия</dt><dd class="col-sm-8">@(Model.Version ?? "—")</dd>
+            <dt class="col-sm-4">Категория</dt><dd class="col-sm-8">@Model.Category</dd>
+            <dt class="col-sm-4">Источник</dt><dd class="col-sm-8">@Model.Source</dd>
+        </dl></div><div class="col-md-6"><dl class="row">
+            <dt class="col-sm-4">Создал</dt><dd class="col-sm-8">@Model.CreatedByUserName (@Model.CreatedAt.ToString("dd.MM.yyyy HH:mm"))</dd>
+            <dt class="col-sm-4">Исполнитель</dt><dd class="col-sm-8">@(Model.AssignedToUserName ?? "Не назначен")</dd>
+            @if (!string.IsNullOrWhiteSpace(Model.Resolution)) { <dt class="col-sm-4">Решение</dt><dd class="col-sm-8">@Model.Resolution</dd> }
+        </dl></div></div>
+        <h5>Описание</h5><p>@Model.Description</p>
+    </div>
+
+    <div class="tab-pane fade" id="files">
+        <form asp-controller="Files" asp-action="Upload" method="post" enctype="multipart/form-data" class="mb-3">
+            <input type="hidden" name="ticketId" value="@Model.Id" />
+            <div class="input-group"><input type="file" name="file" class="form-control" required /><button type="submit" class="btn btn-outline-primary">Загрузить</button></div>
+        </form>
+        @foreach (var f in attachments)
+        { <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+            <div><strong>@f.FileName</strong> <small class="text-muted">(@($"{f.FileSizeBytes / 1024.0:F1}") КБ, @f.UploadedByName)</small></div>
+            <div>
+                <a asp-controller="Files" asp-action="Download" asp-route-id="@f.Id" class="btn btn-sm btn-outline-success">Скачать</a>
+                <form asp-controller="Files" asp-action="Delete" method="post" class="d-inline">
+                    <input type="hidden" name="id" value="@f.Id" /><input type="hidden" name="ticketId" value="@Model.Id" />
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Удалить</button>
+                </form>
+            </div>
+          </div> }
+    </div>
+
+    <div class="tab-pane fade" id="comments">
+        <form asp-action="AddComment" asp-route-id="@Model.Id" method="post" class="mb-4">
+            <div class="mb-2"><textarea name="Content" class="form-control" rows="3" placeholder="Комментарий..." required></textarea></div>
+            @if (currentRole != Roles.Applicant) { <div class="form-check mb-2"><input type="checkbox" name="IsInternal" value="true" class="form-check-input" id="intCheck" /><label class="form-check-label" for="intCheck">Внутренний</label></div> }
+            <button type="submit" class="btn btn-primary btn-sm">Отправить</button>
+        </form>
+        @foreach (var c in comments)
+        { <div class="border-start border-3 @(c.IsInternal ? "border-warning" : "border-primary") ps-3 mb-3">
+            <div class="d-flex justify-content-between"><strong>@c.AuthorName</strong><small class="text-muted">@c.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small></div>
+            @if (c.IsInternal) { <span class="badge bg-warning text-dark">Внутренний</span> }
+            <p class="mb-0">@c.Content</p>
+          </div> }
+    </div>
+
+    <div class="tab-pane fade" id="history">
+        @foreach (var h in history)
+        { <div class="d-flex mb-2">
+            <small class="text-muted me-3" style="min-width:140px">@h.ChangedAt.ToString("dd.MM.yyyy HH:mm")</small>
+            <div><strong>@h.ChangedByName</strong> <span class="badge bg-secondary">@h.ChangeType</span>
+            @if (!string.IsNullOrWhiteSpace(h.FieldName)) { <span>@h.FieldName: @(h.OldValue ?? "—") → @(h.NewValue ?? "—")</span> } else { <span>@h.NewValue</span> }
+            </div>
+          </div> }
+    </div>
+</div>

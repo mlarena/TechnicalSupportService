@@ -1,0 +1,14 @@
+@model TechnicalSupportService.Core.DTOs.ProductDto
+@{ ViewData["Title"] = "Редактировать продукт"; }
+<h2>Редактировать: @Model.Name</h2>
+<form asp-action="EditProduct" asp-route-id="@Model.Id" method="post">
+    <div class="mb-3"><label class="form-label">Название *</label><input name="Name" class="form-control" value="@Model.Name" required /></div>
+    <div class="mb-3"><label class="form-label">Тип</label><select name="ProductType" class="form-select">
+        <option value="Software" selected="@(Model.ProductType == TechnicalSupportService.Core.Enums.ProductType.Software)">Software</option>
+        <option value="Hardware" selected="@(Model.ProductType == TechnicalSupportService.Core.Enums.ProductType.Hardware)">Hardware</option>
+        <option value="Embedded" selected="@(Model.ProductType == TechnicalSupportService.Core.Enums.ProductType.Embedded)">Embedded</option>
+    </select></div>
+    <div class="mb-3"><label class="form-label">Версия</label><input name="CurrentVersion" class="form-control" value="@Model.CurrentVersion" /></div>
+    <div class="mb-3"><label class="form-label">Описание</label><textarea name="Description" class="form-control">@Model.Description</textarea></div>
+    <button type="submit" class="btn btn-primary">Сохранить</button>
+</form>

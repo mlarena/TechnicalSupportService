@@ -29,10 +29,9 @@ public class AttachmentService : IAttachmentService
             }).ToListAsync();
     }
 
-    public async Task<AttachmentDto> UploadAsync(Guid ticketId, Microsoft.AspNetCore.Http.IFormFile file, Guid currentUserId)
+    public async Task<AttachmentDto> UploadAsync(Guid ticketId, Stream fileStream, string fileName, string contentType, long fileSize, Guid currentUserId)
     {
-        using var stream = file.OpenReadStream();
-        var filePath = await _fileStorage.SaveAsync(stream, file.FileName, ticketId);
+        var filePath = await _fileStorage.SaveAsync(fileStream, fileName, ticketId);
 
         var attachment = new Attachment
         {

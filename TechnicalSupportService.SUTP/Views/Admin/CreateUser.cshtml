@@ -1,0 +1,15 @@
+@model TechnicalSupportService.Core.DTOs.UserCreateDto
+@{ ViewData["Title"] = "Создать пользователя"; }
+<h2>Создать пользователя</h2>
+<div asp-validation-summary="All" class="text-danger"></div>
+<form asp-action="CreateUser" method="post">
+    <div class="mb-3"><label class="form-label">ФИО *</label><input asp-for="FullName" class="form-control" required /></div>
+    <div class="mb-3"><label class="form-label">Email *</label><input asp-for="Email" type="email" class="form-control" required /></div>
+    <div class="mb-3"><label class="form-label">Пароль *</label><input asp-for="Password" type="password" class="form-control" required minlength="8" /></div>
+    <div class="mb-3"><label class="form-label">Должность</label><input asp-for="Position" class="form-control" /></div>
+    <div class="mb-3"><label class="form-label">Роль *</label><select asp-for="Role" class="form-select" required>
+        @foreach (var r in ViewBag.Roles as string[]) { <option value="@r">@r</option> }
+    </select></div>
+    <button type="submit" class="btn btn-primary">Создать</button>
+    <a asp-action="Users" class="btn btn-outline-secondary">Отмена</a>
+</form>

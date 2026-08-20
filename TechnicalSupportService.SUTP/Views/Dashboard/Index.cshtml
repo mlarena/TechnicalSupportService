@@ -1,0 +1,35 @@
+@model TechnicalSupportService.Core.DTOs.DashboardDto
+@{ ViewData["Title"] = "Дашборд"; }
+
+<h2>Дашборд</h2>
+
+<div class="row mb-4">
+    <div class="col-md-3"><div class="card text-white bg-info"><div class="card-body text-center">
+        <h4>@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</h4><small>Новые</small>
+    </div></div></div>
+    <div class="col-md-3"><div class="card text-white bg-warning"><div class="card-body text-center">
+        <h4>@(Model.TicketsByStatus.GetValueOrDefault("InProgress", 0))</h4><small>В работе</small>
+    </div></div></div>
+    <div class="col-md-3"><div class="card text-white bg-success"><div class="card-body text-center">
+        <h4>@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</h4><small>Решены</small>
+    </div></div></div>
+    <div class="col-md-3"><div class="card text-white bg-danger"><div class="card-body text-center">
+        <h4>@Model.CriticalCount</h4><small>Критические</small>
+    </div></div></div>
+</div>
+
+<h4>Последние заявки</h4>
+<table class="table table-hover">
+    <thead><tr><th>Номер</th><th>Заголовок</th><th>Статус</th><th>Приоритет</th><th>Продукт</th><th>Дата</th></tr></thead>
+    <tbody>
+    @foreach (var t in Model.RecentTickets)
+    {
+        <tr onclick="location.href='@Url.Action("Details", "Tickets", new { id = t.Id })'" style="cursor:pointer">
+            <td>@t.Number</td><td>@t.Title</td>
+            <td><span class="badge bg-@(t.Status == TechnicalSupportService.Core.Enums.TicketStatus.New ? "info" : t.Status == TechnicalSupportService.Core.Enums.TicketStatus.InProgress ? "warning" : t.Status == TechnicalSupportService.Core.Enums.TicketStatus.Resolved ? "success" : "secondary")">@t.Status</span></td>
+            <td><span class="badge bg-@(t.Priority == TechnicalSupportService.Core.Enums.Priority.Critical ? "danger" : t.Priority == TechnicalSupportService.Core.Enums.Priority.High ? "warning" : "info")">@t.Priority</span></td>
+            <td>@t.ProductName</td><td>@t.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+        </tr>
+    }
+    </tbody>
+</table>

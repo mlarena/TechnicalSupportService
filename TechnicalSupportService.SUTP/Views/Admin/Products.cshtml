@@ -1,0 +1,12 @@
+@model IEnumerable<TechnicalSupportService.Core.DTOs.ProductDto>
+@{ ViewData["Title"] = "Продукты"; }
+<h2>Продукты</h2>
+<a asp-action="CreateProduct" class="btn btn-primary mb-3">+ Добавить</a>
+<table class="table table-hover">
+    <thead><tr><th>Название</th><th>Тип</th><th>Версия</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+    @foreach (var p in Model)
+    { <tr><td>@p.Name</td><td>@p.ProductType</td><td>@(p.CurrentVersion ?? "—")</td><td>@(p.IsActive ? "✅" : "🚫")</td>
+        <td><a asp-action="EditProduct" asp-route-id="@p.Id" class="btn btn-sm btn-outline-primary">Редактировать</a></td></tr> }
+    </tbody>
+</table>

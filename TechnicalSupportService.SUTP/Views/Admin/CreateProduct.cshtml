@@ -1,0 +1,12 @@
+@model TechnicalSupportService.Core.DTOs.ProductCreateDto
+@{ ViewData["Title"] = "Создать продукт"; }
+<h2>Создать продукт</h2>
+<form asp-action="CreateProduct" method="post">
+    <div class="mb-3"><label class="form-label">Название *</label><input asp-for="Name" class="form-control" required /></div>
+    <div class="mb-3"><label class="form-label">Тип</label><select asp-for="ProductType" class="form-select">
+        <option value="Software">Software</option><option value="Hardware">Hardware</option><option value="Embedded">Embedded</option>
+    </select></div>
+    <div class="mb-3"><label class="form-label">Версия</label><input asp-for="CurrentVersion" class="form-control" /></div>
+    <div class="mb-3"><label class="form-label">Описание</label><textarea asp-for="Description" class="form-control"></textarea></div>
+    <button type="submit" class="btn btn-primary">Создать</button>
+</form>

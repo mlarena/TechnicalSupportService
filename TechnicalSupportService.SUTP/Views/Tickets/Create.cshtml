@@ -1,0 +1,24 @@
+@model TechnicalSupportService.Core.DTOs.TicketCreateDto
+@{ ViewData["Title"] = "Создать заявку"; }
+
+<h2>Создать заявку</h2>
+<div asp-validation-summary="All" class="text-danger"></div>
+
+<form asp-action="Create" method="post">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="mb-3"><label class="form-label">Заголовок *</label><input asp-for="Title" class="form-control" maxlength="200" required /></div>
+            <div class="mb-3"><label class="form-label">Описание *</label><textarea asp-for="Description" class="form-control" rows="5" required></textarea></div>
+        </div>
+        <div class="col-md-4">
+            <div class="mb-3"><label class="form-label">Продукт *</label><select asp-for="ProductId" asp-items="@(ViewBag.Products as Microsoft.AspNetCore.Mvc.Rendering.SelectList)" class="form-select" required><option value="">Выберите</option></select></div>
+            <div class="mb-3"><label class="form-label">Версия</label><input asp-for="Version" class="form-control" maxlength="20" /></div>
+            <div class="mb-3"><label class="form-label">Категория *</label><select asp-for="Category" asp-items="@(ViewBag.Categories as Microsoft.AspNetCore.Mvc.Rendering.SelectList)" class="form-select" required></select></div>
+            <div class="mb-3"><label class="form-label">Приоритет *</label><select asp-for="Priority" asp-items="@(ViewBag.Priorities as Microsoft.AspNetCore.Mvc.Rendering.SelectList)" class="form-select" required></select></div>
+            <div class="mb-3"><label class="form-label">Источник *</label><select asp-for="Source" asp-items="@(ViewBag.Sources as Microsoft.AspNetCore.Mvc.Rendering.SelectList)" class="form-select" required></select></div>
+            <div class="mb-3"><label class="form-label">Исполнитель</label><select asp-for="AssignedToUserId" asp-items="@(ViewBag.Engineers as Microsoft.AspNetCore.Mvc.Rendering.SelectList)" class="form-select"><option value="">Не назначен</option></select></div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Создать</button>
+    <a asp-action="Index" class="btn btn-outline-secondary">Отмена</a>
+</form>
