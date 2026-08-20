@@ -298,7 +298,7 @@ __pycache__/
 /admin/publish_cmd/tcm_arm.zip
 /admin/publish_cmd/s_tcm_arm.zip
 /ptz/ptz.zip
-task.txt
+
 # Docker secrets
 .env
 .env.local
