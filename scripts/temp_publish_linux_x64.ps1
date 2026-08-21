@@ -54,27 +54,3 @@ foreach ($project in $projects) {
     }
     Write-Host "Done: $zipPath" -ForegroundColor Green
 }
-
-Write-Host "--- Creating ptz.zip ---" -ForegroundColor Cyan
-$ptzSourcePath = "$basePath\ptz"
-$ptzZipPath = "$ptzSourcePath\ptz.zip"
-if (Test-Path $ptzZipPath) { Remove-Item $ptzZipPath }
-
-$ptzFiles = @("ptz_onvif.py", "ptz_srv.py", "requirements.txt")
-Add-Type -AssemblyName "System.IO.Compression.FileSystem"
-$zipArchive = [System.IO.Compression.ZipFile]::Open($ptzZipPath, "Create")
-try {
-    foreach ($fileName in $ptzFiles) {
-        $filePath = Join-Path $ptzSourcePath $fileName
-        if (Test-Path $filePath) {
-            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zipArchive, $filePath, $fileName)
-        }
-    }
-}
-finally {
-    $zipArchive.Dispose()
-}
-Write-Host "Done: $ptzZipPath" -ForegroundColor Green
-
-Write-Host "--- Creating Deploy Bundle ---" -ForegroundColor Cyan
-& "$PSScriptRoot\create_deploy_bundle_x64.ps1"
