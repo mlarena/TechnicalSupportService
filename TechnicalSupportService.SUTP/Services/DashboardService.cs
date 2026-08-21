@@ -38,12 +38,14 @@ public class DashboardService : IDashboardService
         var criticalCount = await query.CountAsync(t => t.Priority == Priority.Critical && t.Status != TicketStatus.Closed && t.Status != TicketStatus.Resolved);
         var unassignedCount = await query.CountAsync(t => t.AssignedToUserId == null && t.Status != TicketStatus.Closed && t.Status != TicketStatus.Resolved);
         var totalOpen = await query.CountAsync(t => t.Status != TicketStatus.Closed);
+        var inProgressCount = await query.CountAsync(t => t.Status == TicketStatus.InProgress || t.Status == TicketStatus.Reopened);
 
         return new DashboardDto
         {
             TicketsByStatus = ticketsByStatus, TicketsByPriority = ticketsByPriority,
             RecentTickets = recentTickets, CriticalCount = criticalCount,
-            UnassignedCount = unassignedCount, TotalOpen = totalOpen
+            UnassignedCount = unassignedCount, TotalOpen = totalOpen,
+            InProgressCount = inProgressCount
         };
     }
 }

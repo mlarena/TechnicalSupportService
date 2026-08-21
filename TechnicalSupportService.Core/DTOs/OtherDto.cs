@@ -90,4 +90,5 @@ public class DashboardDto
     public int CriticalCount { get; set; }
     public int UnassignedCount { get; set; }
     public int TotalOpen { get; set; }
+    public int InProgressCount { get; set; }
 }
