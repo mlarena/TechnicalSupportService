@@ -42,7 +42,7 @@
 
 <h4>Последние заявки</h4>
 <table class="table table-hover">
-    <thead><tr><th>Номер</th><th>Заголовок</th><th>Статус</th><th>Приоритет</th><th>Продукт</th><th>Дата</th></tr></thead>
+    <thead><tr><th>Номер</th><th>Заголовок</th><th>Статус</th><th>Приоритет</th><th>Исполнитель</th><th>Продукт</th><th>Дата</th></tr></thead>
     <tbody>
     @foreach (var t in Model.RecentTickets)
     {
@@ -50,6 +50,7 @@
             <td>@t.Number</td><td>@t.Title</td>
             <td><span class="badge bg-@(t.Status == TicketStatus.New ? "info" : t.Status == TicketStatus.InProgress ? "warning" : t.Status == TicketStatus.Resolved ? "success" : "secondary")">@t.Status.ToDisplayString()</span></td>
             <td><span class="badge bg-@(t.Priority == Priority.Critical ? "danger" : t.Priority == Priority.High ? "warning" : "info")">@t.Priority.ToDisplayString()</span></td>
+            <td>@(t.AssignedToUserName ?? "—")</td>
             <td>@t.ProductName</td><td>@t.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
         </tr>
     }

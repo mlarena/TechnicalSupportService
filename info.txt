@@ -1,0 +1,1 @@
+cd C:\dev\TechnicalSupportService; dotnet run --project TechnicalSupportService.SUTP/TechnicalSupportService.SUTP.csproj --urls "http://localhost:5000"\

@@ -6,6 +6,7 @@ using TechnicalSupportService.Core.Exceptions;
 using TechnicalSupportService.Core.Interfaces;
 using TechnicalSupportService.Data.Context;
 using TechnicalSupportService.Data.Entities;
+using TechnicalSupportService.Core.Helpers;
 
 namespace TechnicalSupportService.SUTP.Services;
 
@@ -91,24 +92,43 @@ public class TicketService : ITicketService
     public async Task<TicketDto> UpdateAsync(Guid id, TicketUpdateDto dto, Guid currentUserId)
     {
         var ticket = await _db.Tickets.FindAsync(id) ?? throw new NotFoundException("Заявка не найдена");
-        var changes = new List<string>();
-        if (ticket.Title != dto.Title) { changes.Add($"Title: {ticket.Title} → {dto.Title}"); ticket.Title = dto.Title; }
-        if (ticket.Description != dto.Description) { changes.Add("Description изменено"); ticket.Description = dto.Description; }
-        if (ticket.ProductId != dto.ProductId) { changes.Add($"ProductId → {dto.ProductId}"); ticket.ProductId = dto.ProductId; }
-        if (ticket.Priority != dto.Priority) { changes.Add($"Priority → {dto.Priority}"); ticket.Priority = dto.Priority; }
-        if (ticket.Category != dto.Category) { changes.Add($"Category → {dto.Category}"); ticket.Category = dto.Category; }
-        if (ticket.Impact != dto.Impact) { changes.Add($"Impact → {dto.Impact}"); ticket.Impact = dto.Impact; }
 
-        // Auto-increment Version
+        if (ticket.Title != dto.Title)
+            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Заголовок", OldValue = ticket.Title, NewValue = dto.Title });
+
+        if (ticket.Description != dto.Description)
+            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Описание", OldValue = "—", NewValue = "изменено" });
+
+        if (ticket.ProductId != dto.ProductId)
+        {
+            var oldProduct = await _db.Products.FindAsync(ticket.ProductId);
+            var newProduct = await _db.Products.FindAsync(dto.ProductId);
+            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Продукт", OldValue = oldProduct?.Name ?? "—", NewValue = newProduct?.Name ?? "—" });
+        }
+
+        if (ticket.Priority != dto.Priority)
+            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Приоритет", OldValue = ticket.Priority.ToDisplayString(), NewValue = dto.Priority.ToDisplayString() });
+
+        if (ticket.Category != dto.Category)
+            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Категория", OldValue = ticket.Category.ToDisplayString(), NewValue = dto.Category.ToDisplayString() });
+
+        if (ticket.Impact != dto.Impact)
+            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Влияние", OldValue = ticket.Impact?.ToDisplayString() ?? "—", NewValue = dto.Impact?.ToDisplayString() ?? "—" });
+
+        ticket.Title = dto.Title;
+        ticket.Description = dto.Description;
+        ticket.ProductId = dto.ProductId;
+        ticket.Priority = dto.Priority;
+        ticket.Category = dto.Category;
+        ticket.Impact = dto.Impact;
+
         if (int.TryParse(ticket.Version, out var ver))
             ticket.Version = (ver + 1).ToString();
         else
             ticket.Version = "1";
 
-        ticket.UpdatedByUserId = currentUserId; ticket.UpdatedAt = DateTime.UtcNow;
-
-        foreach (var change in changes)
-            _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, NewValue = change });
+        ticket.UpdatedByUserId = currentUserId;
+        ticket.UpdatedAt = DateTime.UtcNow;
 
         await _audit.LogAsync("Ticket.Update", currentUserId, "Ticket", id);
         await _db.SaveChangesAsync();
@@ -131,7 +151,7 @@ public class TicketService : ITicketService
         _db.TicketHistories.Add(new TicketHistory
         {
             TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.StatusChange,
-            FieldName = "Status", OldValue = oldStatus.ToString(), NewValue = newStatus.ToString()
+            FieldName = "Статус", OldValue = oldStatus.ToDisplayString(), NewValue = newStatus.ToDisplayString()
         });
 
         await _audit.LogAsync("Ticket.StatusChange", currentUserId, "Ticket", id, $"{oldStatus} → {newStatus}");
@@ -141,14 +161,21 @@ public class TicketService : ITicketService
     public async Task AssignAsync(Guid id, Guid? assigneeId, Guid currentUserId)
     {
         var ticket = await _db.Tickets.FindAsync(id) ?? throw new NotFoundException("Заявка не найдена");
-        var oldAssignee = ticket.AssignedToUserId;
+        var oldAssigneeId = ticket.AssignedToUserId;
         ticket.AssignedToUserId = assigneeId; ticket.UpdatedByUserId = currentUserId; ticket.UpdatedAt = DateTime.UtcNow;
         if (assigneeId.HasValue && ticket.Status == TicketStatus.New) ticket.Status = TicketStatus.Assigned;
+
+        var oldName = oldAssigneeId.HasValue
+            ? await _db.Users.Where(u => u.Id == oldAssigneeId.Value).Select(u => u.FullName + " (" + u.Email + ")").FirstOrDefaultAsync() ?? "—"
+            : "—";
+        var newName = assigneeId.HasValue
+            ? await _db.Users.Where(u => u.Id == assigneeId.Value).Select(u => u.FullName + " (" + u.Email + ")").FirstOrDefaultAsync() ?? "—"
+            : "—";
 
         _db.TicketHistories.Add(new TicketHistory
         {
             TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Assignment,
-            FieldName = "AssignedToUserId", OldValue = oldAssignee?.ToString(), NewValue = assigneeId?.ToString()
+            FieldName = "Исполнитель", OldValue = oldName, NewValue = newName
         });
         await _audit.LogAsync("Ticket.Assign", currentUserId, "Ticket", id);
         await _db.SaveChangesAsync();
