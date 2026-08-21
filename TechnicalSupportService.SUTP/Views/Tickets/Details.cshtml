@@ -17,8 +17,6 @@
 <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
         <h2>@Model.Number — @Model.Title</h2>
-        <span class="badge bg-@(Model.Status == TicketStatus.New ? "info" : Model.Status == TicketStatus.InProgress ? "warning" : Model.Status == TicketStatus.Resolved ? "success" : "secondary") fs-6">@Model.Status.ToDisplayString()</span>
-        <span class="badge bg-@(Model.Priority == Priority.Critical ? "danger" : Model.Priority == Priority.High ? "warning" : "info")">@Model.Priority.ToDisplayString()</span>
     </div>
     <div class="d-flex flex-wrap gap-2 align-items-center">
         @* === Смена статуса === *@
@@ -71,6 +69,8 @@
 <div class="tab-content mt-3">
     <div class="tab-pane fade" id="info">
         <div class="row"><div class="col-md-6"><dl class="row">
+            <dt class="col-sm-4">Статус</dt><dd class="col-sm-8"><span class="badge bg-@(Model.Status == TicketStatus.New ? "info" : Model.Status == TicketStatus.InProgress ? "warning" : Model.Status == TicketStatus.Resolved ? "success" : Model.Status == TicketStatus.Reopened ? "danger" : "secondary")">@Model.Status.ToDisplayString()</span></dd>
+            <dt class="col-sm-4">Приоритет</dt><dd class="col-sm-8"><span class="badge bg-@(Model.Priority == Priority.Critical ? "danger" : Model.Priority == Priority.High ? "warning" : Model.Priority == Priority.Medium ? "info" : "secondary")">@Model.Priority.ToDisplayString()</span></dd>
             <dt class="col-sm-4">Продукт</dt><dd class="col-sm-8">@Model.ProductName (@(((ProductType)Enum.Parse(typeof(ProductType), Model.ProductType)).ToDisplayString()))</dd>
             <dt class="col-sm-4">Версия</dt><dd class="col-sm-8">@(Model.Version ?? "—")</dd>
             <dt class="col-sm-4">Категория</dt><dd class="col-sm-8">@Model.Category.ToDisplayString()</dd>
