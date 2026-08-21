@@ -22,30 +22,17 @@
         @* === Смена статуса === *@
         @if (validStatuses.Any())
         {
-            <form asp-action="ChangeStatus" asp-route-id="@Model.Id" method="post" class="d-inline-flex align-items-center gap-1">
-                <select name="newStatus" class="form-select form-select-sm" style="width:auto">
-                    @foreach (var s in validStatuses)
-                    {
-                        <option value="@s">@s.ToDisplayString()</option>
-                    }
-                </select>
-                <button type="submit" class="btn btn-sm btn-outline-primary">Сменить статус</button>
-            </form>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#statusModal">
+                <i class="bi bi-arrow-repeat"></i> Сменить статус
+            </button>
         }
 
         @* === Назначение исполнителя (Admin/Manager) === *@
         @if (currentRole == Roles.Admin || currentRole == Roles.Manager)
         {
-            <form asp-action="Assign" asp-route-id="@Model.Id" method="post" class="d-inline-flex align-items-center gap-1">
-                <select name="assigneeId" class="form-select form-select-sm" style="width:auto">
-                    <option value="">— Снять исполнителя —</option>
-                    @foreach (var item in engineers)
-                    {
-                        <option value="@item.Value" selected="@(item.Value == Model.AssignedToUserId?.ToString())">@item.Text</option>
-                    }
-                </select>
-                <button type="submit" class="btn btn-sm btn-outline-primary">Назначить</button>
-            </form>
+            <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#assignModal">
+                <i class="bi bi-person-plus"></i> Назначить исполнителя
+            </button>
         }
 
         <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-outline-secondary btn-sm">Редактировать</a>
@@ -128,6 +115,83 @@
           </div> }
     </div>
 </div>
+
+@* === Модальное окно смены статуса === *@
+@if (validStatuses.Any())
+{
+<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="statusModalLabel">Смена статуса заявки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Текущий статус: <span class="badge bg-@(Model.Status == TicketStatus.New ? "info" : Model.Status == TicketStatus.InProgress ? "warning" : Model.Status == TicketStatus.Resolved ? "success" : Model.Status == TicketStatus.Reopened ? "danger" : "secondary") fs-6">@Model.Status.ToDisplayString()</span></p>
+                <p class="text-muted mb-3">Выберите новый статус:</p>
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach (var s in validStatuses)
+                    {
+                        var btnClass = s == TicketStatus.New ? "btn-info"
+                            : s == TicketStatus.InProgress ? "btn-warning"
+                            : s == TicketStatus.Resolved ? "btn-success"
+                            : s == TicketStatus.Reopened ? "btn-danger"
+                            : s == TicketStatus.Closed ? "btn-dark"
+                            : "btn-secondary";
+                        <form asp-action="ChangeStatus" asp-route-id="@Model.Id" method="post" class="d-inline">
+                            <input type="hidden" name="newStatus" value="@s" />
+                            <button type="submit" class="btn @btnClass">
+                                @s.ToDisplayString()
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+@* === Модальное окно назначения исполнителя === *@
+@if (currentRole == Roles.Admin || currentRole == Roles.Manager)
+{
+<div class="modal fade" id="assignModal" tabindex="-1" aria-labelledby="assignModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignModalLabel">Назначение исполнителя</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">Текущий исполнитель: <strong>@(Model.AssignedToUserName ?? "Не назначен")</strong></p>
+                <p class="text-muted mb-3">Выберите исполнителя:</p>
+                <div class="d-flex flex-wrap gap-2">
+                    @foreach (var item in engineers)
+                    {
+                        var isCurrent = item.Value == Model.AssignedToUserId?.ToString();
+                        <form asp-action="Assign" asp-route-id="@Model.Id" method="post" class="d-inline">
+                            <input type="hidden" name="assigneeId" value="@item.Value" />
+                            <button type="submit" class="btn @(isCurrent ? "btn-primary" : "btn-outline-primary")">
+                                @if (isCurrent) { <i class="bi bi-check-lg"></i> } @item.Text
+                            </button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <form asp-action="Assign" asp-route-id="@Model.Id" method="post" class="d-inline">
+                    <input type="hidden" name="assigneeId" value="" />
+                    <button type="submit" class="btn btn-outline-danger">Снять исполнителя</button>
+                </form>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+            </div>
+        </div>
+    </div>
+</div>
+}
 
 @section Scripts {
 <script>
