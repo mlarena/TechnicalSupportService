@@ -6,37 +6,65 @@
 <h2>Дашборд</h2>
 
 <div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card stat-card rounded-3">
-            <div class="card-body text-center py-3">
-                <div class="text-muted small mb-1">Новые</div>
-                <div class="fs-3 fw-bold text-dark">@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</div>
+    <div class="col-md-2">
+        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.New })" class="text-decoration-none">
+            <div class="card stat-card rounded-3 h-100">
+                <div class="card-body text-center py-3">
+                    <div class="text-muted small mb-1">Новые</div>
+                    <div class="fs-3 fw-bold text-primary">@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card rounded-3">
-            <div class="card-body text-center py-3">
-                <div class="text-muted small mb-1">В работе</div>
-                <div class="fs-3 fw-bold text-dark">@(Model.TicketsByStatus.GetValueOrDefault("InProgress", 0))</div>
+    <div class="col-md-2">
+        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.InProgress })" class="text-decoration-none">
+            <div class="card stat-card rounded-3 h-100">
+                <div class="card-body text-center py-3">
+                    <div class="text-muted small mb-1">В работе</div>
+                    <div class="fs-3 fw-bold text-warning">@(Model.TicketsByStatus.GetValueOrDefault("InProgress", 0))</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card rounded-3">
-            <div class="card-body text-center py-3">
-                <div class="text-muted small mb-1">Решены</div>
-                <div class="fs-3 fw-bold text-dark">@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</div>
+    <div class="col-md-2">
+        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.Assigned })" class="text-decoration-none">
+            <div class="card stat-card rounded-3 h-100">
+                <div class="card-body text-center py-3">
+                    <div class="text-muted small mb-1">Назначенные</div>
+                    <div class="fs-3 fw-bold text-info">@(Model.TicketsByStatus.GetValueOrDefault("Assigned", 0))</div>
+                </div>
             </div>
-        </div>
+        </a>
     </div>
-    <div class="col-md-3">
-        <div class="card stat-card rounded-3">
-            <div class="card-body text-center py-3">
-                <div class="text-muted small mb-1">Критические</div>
-                <div class="fs-3 fw-bold text-dark">@Model.CriticalCount</div>
+    <div class="col-md-2">
+        <a href="@Url.Action("Index", "Tickets", new { Unassigned = true })" class="text-decoration-none">
+            <div class="card stat-card rounded-3 h-100">
+                <div class="card-body text-center py-3">
+                    <div class="text-muted small mb-1">Без исполнителя</div>
+                    <div class="fs-3 fw-bold text-secondary">@Model.UnassignedCount</div>
+                </div>
             </div>
-        </div>
+        </a>
+    </div>
+    <div class="col-md-2">
+        <a href="@Url.Action("Index", "Tickets", new { Priority = Priority.Critical })" class="text-decoration-none">
+            <div class="card stat-card rounded-3 h-100">
+                <div class="card-body text-center py-3">
+                    <div class="text-muted small mb-1">Критические</div>
+                    <div class="fs-3 fw-bold text-danger">@Model.CriticalCount</div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-2">
+        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.Resolved })" class="text-decoration-none">
+            <div class="card stat-card rounded-3 h-100">
+                <div class="card-body text-center py-3">
+                    <div class="text-muted small mb-1">Решённые</div>
+                    <div class="fs-3 fw-bold text-success">@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</div>
+                </div>
+            </div>
+        </a>
     </div>
 </div>
 
@@ -48,8 +76,8 @@
     {
         <tr onclick="location.href='@Url.Action("Details", "Tickets", new { id = t.Id })'" style="cursor:pointer">
             <td>@t.Number</td><td>@t.Title</td>
-            <td><span class="badge bg-@(t.Status == TicketStatus.New ? "info" : t.Status == TicketStatus.InProgress ? "warning" : t.Status == TicketStatus.Resolved ? "success" : "secondary")">@t.Status.ToDisplayString()</span></td>
-            <td><span class="badge bg-@(t.Priority == Priority.Critical ? "danger" : t.Priority == Priority.High ? "warning" : "info")">@t.Priority.ToDisplayString()</span></td>
+            <td><span class="badge bg-@(t.Status == TicketStatus.New ? "info" : t.Status == TicketStatus.InProgress ? "warning" : t.Status == TicketStatus.Assigned ? "primary" : t.Status == TicketStatus.Resolved ? "success" : t.Status == TicketStatus.Reopened ? "danger" : "secondary")">@t.Status.ToDisplayString()</span></td>
+            <td><span class="badge bg-@(t.Priority == Priority.Critical ? "danger" : t.Priority == Priority.High ? "warning" : t.Priority == Priority.Medium ? "info" : "secondary")">@t.Priority.ToDisplayString()</span></td>
             <td>@(t.AssignedToUserName ?? "—")</td>
             <td>@t.ProductName</td><td>@t.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
         </tr>

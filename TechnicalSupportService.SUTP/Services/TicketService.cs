@@ -71,6 +71,7 @@ public class TicketService : ITicketService
         if (filter.Category.HasValue) query = query.Where(t => t.Category == filter.Category.Value);
         if (filter.ProductId.HasValue) query = query.Where(t => t.ProductId == filter.ProductId.Value);
         if (filter.AssignedToUserId.HasValue) query = query.Where(t => t.AssignedToUserId == filter.AssignedToUserId.Value);
+        if (filter.Unassigned == true) query = query.Where(t => t.AssignedToUserId == null && t.Status != TicketStatus.Closed && t.Status != TicketStatus.Resolved);
         if (!string.IsNullOrWhiteSpace(filter.Search))
             query = query.Where(t => t.Number.Contains(filter.Search) || t.Title.Contains(filter.Search) || t.Description.Contains(filter.Search));
         if (filter.DateFrom.HasValue) query = query.Where(t => t.CreatedAt >= filter.DateFrom.Value);

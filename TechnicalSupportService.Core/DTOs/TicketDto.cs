@@ -88,6 +88,7 @@ public class TicketFilterDto
     public Category? Category { get; set; }
     public Guid? ProductId { get; set; }
     public Guid? AssignedToUserId { get; set; }
+    public bool? Unassigned { get; set; }
     public string? Search { get; set; }
     public DateTime? DateFrom { get; set; }
     public DateTime? DateTo { get; set; }

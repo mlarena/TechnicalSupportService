@@ -17,6 +17,7 @@ public class DashboardService : IDashboardService
         var query = _db.Tickets.Include(t => t.Product).Include(t => t.AssignedToUser)
             .Where(t => !t.IsDeleted).AsQueryable();
         if (currentRole == Roles.Applicant) query = query.Where(t => t.CreatedByUserId == currentUserId);
+        if (currentRole == Roles.Engineer) query = query.Where(t => t.AssignedToUserId == currentUserId);
 
         var ticketsByStatus = await query.GroupBy(t => t.Status)
             .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
@@ -34,13 +35,15 @@ public class DashboardService : IDashboardService
                 CreatedAt = t.CreatedAt
             }).ToListAsync();
 
-        var criticalCount = await query.CountAsync(t => t.Priority == Priority.Critical && t.Status != TicketStatus.Closed);
+        var criticalCount = await query.CountAsync(t => t.Priority == Priority.Critical && t.Status != TicketStatus.Closed && t.Status != TicketStatus.Resolved);
+        var unassignedCount = await query.CountAsync(t => t.AssignedToUserId == null && t.Status != TicketStatus.Closed && t.Status != TicketStatus.Resolved);
         var totalOpen = await query.CountAsync(t => t.Status != TicketStatus.Closed);
 
         return new DashboardDto
         {
             TicketsByStatus = ticketsByStatus, TicketsByPriority = ticketsByPriority,
-            RecentTickets = recentTickets, CriticalCount = criticalCount, TotalOpen = totalOpen
+            RecentTickets = recentTickets, CriticalCount = criticalCount,
+            UnassignedCount = unassignedCount, TotalOpen = totalOpen
         };
     }
 }

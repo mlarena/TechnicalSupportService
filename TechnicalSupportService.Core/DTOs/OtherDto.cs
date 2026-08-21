@@ -88,5 +88,6 @@ public class DashboardDto
     public Dictionary<string, int> TicketsByPriority { get; set; } = new();
     public List<TicketListItemDto> RecentTickets { get; set; } = new();
     public int CriticalCount { get; set; }
+    public int UnassignedCount { get; set; }
     public int TotalOpen { get; set; }
 }
