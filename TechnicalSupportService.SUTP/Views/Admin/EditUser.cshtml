@@ -1,4 +1,5 @@
 @model TechnicalSupportService.Core.DTOs.UserDto
+@using TechnicalSupportService.Core.Helpers
 @{ ViewData["Title"] = "Редактировать пользователя"; }
 <h2>Редактировать: @Model.FullName</h2>
 <div asp-validation-summary="All" class="text-danger"></div>
@@ -6,7 +7,7 @@
     <div class="mb-3"><label class="form-label">ФИО *</label><input name="FullName" class="form-control" value="@Model.FullName" required /></div>
     <div class="mb-3"><label class="form-label">Должность</label><input name="Position" class="form-control" value="@Model.Position" /></div>
     <div class="mb-3"><label class="form-label">Роль *</label><select name="Role" class="form-select" required>
-        @foreach (var r in ViewBag.Roles as string[]) { <option value="@r" selected="@(r == Model.Role)">@r</option> }
+        @foreach (var r in ViewBag.Roles as string[]) { <option value="@r" selected="@(r == Model.Role)">@EnumDisplayHelper.RoleToDisplayString(r)</option> }
     </select></div>
     <button type="submit" class="btn btn-primary">Сохранить</button>
     <a asp-action="Users" class="btn btn-outline-secondary">Отмена</a>

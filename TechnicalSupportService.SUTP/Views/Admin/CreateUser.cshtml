@@ -1,4 +1,5 @@
 @model TechnicalSupportService.Core.DTOs.UserCreateDto
+@using TechnicalSupportService.Core.Helpers
 @{ ViewData["Title"] = "Создать пользователя"; }
 <h2>Создать пользователя</h2>
 <div asp-validation-summary="All" class="text-danger"></div>
@@ -8,7 +9,7 @@
     <div class="mb-3"><label class="form-label">Пароль *</label><input asp-for="Password" type="password" class="form-control" required minlength="8" /></div>
     <div class="mb-3"><label class="form-label">Должность</label><input asp-for="Position" class="form-control" /></div>
     <div class="mb-3"><label class="form-label">Роль *</label><select asp-for="Role" class="form-select" required>
-        @foreach (var r in ViewBag.Roles as string[]) { <option value="@r">@r</option> }
+        @foreach (var r in ViewBag.Roles as string[]) { <option value="@r">@EnumDisplayHelper.RoleToDisplayString(r)</option> }
     </select></div>
     <button type="submit" class="btn btn-primary">Создать</button>
     <a asp-action="Users" class="btn btn-outline-secondary">Отмена</a>

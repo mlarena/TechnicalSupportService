@@ -5,6 +5,7 @@ using System.Security.Claims;
 using TechnicalSupportService.Core.Constants;
 using TechnicalSupportService.Core.DTOs;
 using TechnicalSupportService.Core.Enums;
+using TechnicalSupportService.Core.Exceptions;
 using TechnicalSupportService.Core.Interfaces;
 
 using TechnicalSupportService.Core.Helpers;
@@ -56,7 +57,9 @@ public class TicketsController : Controller
 
     public async Task<IActionResult> Details(Guid id)
     {
-        var ticket = await _ticketService.GetByIdAsync(id);
+        TicketDto? ticket;
+        try { ticket = await _ticketService.GetByIdAsync(id, CurrentUserId, CurrentRole); }
+        catch (ForbiddenException) { return RedirectToAction("AccessDenied", "Account"); }
         if (ticket == null) return NotFound();
         ViewBag.Comments = await _commentService.GetByTicketAsync(id, CurrentRole);
         ViewBag.Attachments = await _attachmentService.GetByTicketAsync(id);
@@ -86,7 +89,9 @@ public class TicketsController : Controller
 
     [HttpGet] public async Task<IActionResult> Edit(Guid id)
     {
-        var ticket = await _ticketService.GetByIdAsync(id);
+        TicketDto? ticket;
+        try { ticket = await _ticketService.GetByIdAsync(id, CurrentUserId, CurrentRole); }
+        catch (ForbiddenException) { return RedirectToAction("AccessDenied", "Account"); }
         if (ticket == null) return NotFound();
         ViewBag.Products = new SelectList(await _productService.GetAllAsync(), "Id", "Name");
         return View(ticket);
@@ -95,14 +100,26 @@ public class TicketsController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(Guid id, TicketUpdateDto dto)
     {
-        if (!ModelState.IsValid) { ViewBag.Products = new SelectList(await _productService.GetAllAsync(), "Id", "Name"); return View(await _ticketService.GetByIdAsync(id)); }
+        if (!ModelState.IsValid)
+        {
+            ViewBag.Products = new SelectList(await _productService.GetAllAsync(), "Id", "Name");
+            TicketDto? ticket;
+            try { ticket = await _ticketService.GetByIdAsync(id, CurrentUserId, CurrentRole); }
+            catch (ForbiddenException) { return RedirectToAction("AccessDenied", "Account"); }
+            return View(ticket);
+        }
         await _ticketService.UpdateAsync(id, dto, CurrentUserId);
         return RedirectToAction("Details", new { id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ChangeStatus(Guid id, TicketStatus newStatus, string? resolution)
-    { await _ticketService.ChangeStatusAsync(id, newStatus, resolution, CurrentUserId); return RedirectToAction("Details", new { id }); }
+    {
+        try { await _ticketService.ChangeStatusAsync(id, newStatus, resolution, CurrentUserId); }
+        catch (ForbiddenException ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction("Details", new { id }); }
+        catch (BusinessRuleException ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction("Details", new { id }); }
+        return RedirectToAction("Details", new { id });
+    }
 
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = $"{Roles.Admin},{Roles.Manager}")]
     public async Task<IActionResult> Assign(Guid id, Guid? assigneeId)
@@ -114,11 +131,21 @@ public class TicketsController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Close(Guid id, string? resolution)
-    { await _ticketService.CloseAsync(id, resolution, CurrentUserId); return RedirectToAction("Details", new { id }); }
+    {
+        try { await _ticketService.CloseAsync(id, resolution, CurrentUserId); }
+        catch (ForbiddenException ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction("Details", new { id }); }
+        catch (BusinessRuleException ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction("Details", new { id }); }
+        return RedirectToAction("Details", new { id });
+    }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Reopen(Guid id)
-    { await _ticketService.ReopenAsync(id, CurrentUserId); return RedirectToAction("Details", new { id }); }
+    {
+        try { await _ticketService.ReopenAsync(id, CurrentUserId); }
+        catch (ForbiddenException ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction("Details", new { id }); }
+        catch (BusinessRuleException ex) { TempData["ErrorMessage"] = ex.Message; return RedirectToAction("Details", new { id }); }
+        return RedirectToAction("Details", new { id });
+    }
 
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> Delete(Guid id)

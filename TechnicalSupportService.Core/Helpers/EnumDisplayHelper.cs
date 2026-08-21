@@ -83,4 +83,17 @@ public static class EnumDisplayHelper
 
     public static string ToDisplayString(this ProductType productType) =>
         ProductTypeNames.GetValueOrDefault(productType, productType.ToString());
+
+    // ─── Роли (строковые) ────────────────────────────────────────────────
+
+    private static readonly Dictionary<string, string> RoleNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Admin"] = "Администратор",
+        ["Engineer"] = "Инженер",
+        ["Manager"] = "Менеджер",
+        ["Applicant"] = "Заявитель"
+    };
+
+    public static string RoleToDisplayString(string? role) =>
+        string.IsNullOrEmpty(role) ? "—" : RoleNames.GetValueOrDefault(role, role);
 }

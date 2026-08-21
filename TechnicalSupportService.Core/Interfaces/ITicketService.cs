@@ -6,6 +6,7 @@ namespace TechnicalSupportService.Core.Interfaces;
 public interface ITicketService
 {
     Task<TicketDto?> GetByIdAsync(Guid id);
+    Task<TicketDto?> GetByIdAsync(Guid id, Guid currentUserId, string currentRole);
     Task<PagedResult<TicketListItemDto>> GetListAsync(TicketFilterDto filter, Guid currentUserId, string currentRole);
     Task<TicketDto> CreateAsync(TicketCreateDto dto, Guid currentUserId);
     Task<TicketDto> UpdateAsync(Guid id, TicketUpdateDto dto, Guid currentUserId);

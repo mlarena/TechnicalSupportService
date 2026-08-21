@@ -28,6 +28,31 @@ public class TicketService : ITicketService
         return t == null ? null : MapToDto(t);
     }
 
+    public async Task<TicketDto?> GetByIdAsync(Guid id, Guid currentUserId, string currentRole)
+    {
+        var t = await _db.Tickets
+            .Include(x => x.Product).Include(x => x.AssignedToUser)
+            .Include(x => x.CreatedByUser)
+            .FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        if (t == null) return null;
+
+        if (!CanAccessTicket(t, currentUserId, currentRole))
+            throw new ForbiddenException("У вас нет доступа к этой заявке");
+
+        return MapToDto(t);
+    }
+
+    private static bool CanAccessTicket(Ticket ticket, Guid userId, string role)
+    {
+        return role switch
+        {
+            Roles.Admin or Roles.Manager => true,
+            Roles.Engineer => ticket.AssignedToUserId == userId,
+            Roles.Applicant => ticket.CreatedByUserId == userId,
+            _ => false
+        };
+    }
+
     public async Task<PagedResult<TicketListItemDto>> GetListAsync(
         TicketFilterDto filter, Guid currentUserId, string currentRole)
     {
@@ -37,6 +62,9 @@ public class TicketService : ITicketService
 
         if (currentRole == Roles.Applicant)
             query = query.Where(t => t.CreatedByUserId == currentUserId);
+
+        if (currentRole == Roles.Engineer)
+            query = query.Where(t => t.AssignedToUserId == currentUserId);
 
         if (filter.Status.HasValue) query = query.Where(t => t.Status == filter.Status.Value);
         if (filter.Priority.HasValue) query = query.Where(t => t.Priority == filter.Priority.Value);
@@ -93,6 +121,10 @@ public class TicketService : ITicketService
     {
         var ticket = await _db.Tickets.FindAsync(id) ?? throw new NotFoundException("Заявка не найдена");
 
+        var userRole = await GetUserRoleAsync(currentUserId);
+        if (!CanAccessTicket(ticket, currentUserId, userRole))
+            throw new ForbiddenException("У вас нет прав на редактирование этой заявки");
+
         if (ticket.Title != dto.Title)
             _db.TicketHistories.Add(new TicketHistory { TicketId = id, ChangedByUserId = currentUserId, ChangeType = ChangeType.Update, FieldName = "Заголовок", OldValue = ticket.Title, NewValue = dto.Title });
 
@@ -139,6 +171,9 @@ public class TicketService : ITicketService
     {
         var ticket = await _db.Tickets.FindAsync(id) ?? throw new NotFoundException("Заявка не найдена");
         var userRole = await GetUserRoleAsync(currentUserId);
+
+        if (!CanAccessTicket(ticket, currentUserId, userRole))
+            throw new ForbiddenException("У вас нет прав на изменение статуса этой заявки");
 
         if (!IsValidTransition(ticket.Status, newStatus, userRole))
             throw new BusinessRuleException($"Переход {ticket.Status} → {newStatus} недопустим для роли {userRole}");
