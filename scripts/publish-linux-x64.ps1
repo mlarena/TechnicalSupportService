@@ -6,7 +6,12 @@ $runtime       = "linux-x64"
 $projectName   = "TechnicalSupportService.SUTP"
 $projectPath   = "$basePath\$projectName\$projectName.csproj"
 $publishDir    = "$basePath\$projectName\release\$runtime"
-$zipPath       = "$basePath\artifacts\$projectName.zip"
+$artifactsDir  = "$basePath\artifacts"
+$innerZipName  = "$projectName.zip"
+$outerZipName  = "SUTP.zip"
+$innerZipPath  = "$artifactsDir\$innerZipName"
+$outerZipPath  = "$artifactsDir\$outerZipName"
+$scriptsDir    = "$basePath\scripts"
 
 Write-Host "--- Building $projectName for $runtime ---" -ForegroundColor Cyan
 
@@ -20,11 +25,13 @@ dotnet clean $projectPath -c Release -r $runtime --nologo -v q | Out-Null
 # 2. Publish
 dotnet publish $projectPath -c Release -r $runtime --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o $publishDir
 
-# 3. Create ZIP
-if (-not (Test-Path (Split-Path $zipPath))) { New-Item -ItemType Directory -Path (Split-Path $zipPath) -Force | Out-Null }
-if (Test-Path $zipPath) { Remove-Item $zipPath }
+# 3. Prepare artifacts directory
+if (-not (Test-Path $artifactsDir)) { New-Item -ItemType Directory -Path $artifactsDir -Force | Out-Null }
+if (Test-Path $innerZipPath) { Remove-Item $innerZipPath }
+if (Test-Path $outerZipPath) { Remove-Item $outerZipPath }
 
-Write-Host "Archiving to $projectName.zip..." -ForegroundColor Yellow
+# 4. Create inner ZIP (project files only)
+Write-Host "Archiving project files to $innerZipName..." -ForegroundColor Yellow
 
 Push-Location $publishDir
 try {
@@ -35,7 +42,7 @@ try {
     if (Test-Path "wwwroot") { $filesToZip += "wwwroot" }
 
     Add-Type -AssemblyName "System.IO.Compression.FileSystem"
-    $zipArchive = [System.IO.Compression.ZipFile]::Open($zipPath, "Create")
+    $zipArchive = [System.IO.Compression.ZipFile]::Open($innerZipPath, "Create")
 
     foreach ($item in $filesToZip) {
         if (Test-Path $item -PathType Container) {
@@ -56,4 +63,33 @@ try {
 finally {
     Pop-Location
 }
-Write-Host "Done: $zipPath" -ForegroundColor Green
+
+# 5. Create outer SUTP.zip (project archive + deployment scripts)
+Write-Host "Creating $outerZipName with deployment scripts..." -ForegroundColor Yellow
+
+Add-Type -AssemblyName "System.IO.Compression.FileSystem"
+$outerArchive = [System.IO.Compression.ZipFile]::Open($outerZipPath, "Create")
+try {
+    # Add inner project zip
+    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($outerArchive, $innerZipPath, $innerZipName)
+    Write-Host "  + $innerZipName" -ForegroundColor Gray
+
+    # Add shell scripts
+    foreach ($script in @("install-sutp.sh", "update-sutp.sh", "remove-sutp.sh")) {
+        $scriptPath = Join-Path $scriptsDir $script
+        if (Test-Path $scriptPath) {
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($outerArchive, $scriptPath, $script)
+            Write-Host "  + $script" -ForegroundColor Gray
+        } else {
+            Write-Host "  WARNING: $script not found at $scriptPath" -ForegroundColor Yellow
+        }
+    }
+}
+finally {
+    $outerArchive.Dispose()
+}
+
+Write-Host "" -ForegroundColor White
+Write-Host "Done:" -ForegroundColor Green
+Write-Host "  Inner ZIP: $innerZipPath" -ForegroundColor Green
+Write-Host "  Outer ZIP: $outerZipPath" -ForegroundColor Green
