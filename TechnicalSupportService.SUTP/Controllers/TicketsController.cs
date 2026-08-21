@@ -127,7 +127,7 @@ public class TicketsController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> AddComment(Guid id, CommentCreateDto dto)
-    { if (!string.IsNullOrWhiteSpace(dto.Content)) await _commentService.AddAsync(id, dto, CurrentUserId); return RedirectToAction("Details", new { id }); }
+    { if (!string.IsNullOrWhiteSpace(dto.Content)) await _commentService.AddAsync(id, dto, CurrentUserId); return RedirectToAction("Details", new { id, tab = "comments" }); }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Close(Guid id, string? resolution)

@@ -15,7 +15,7 @@ public static class SeedData
         var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
         var db = sp.GetRequiredService<ApplicationDbContext>();
 
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.MigrateAsync();
 
         // Роли
         foreach (var roleName in Roles.All)

@@ -15,10 +15,10 @@ public class FilesController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Upload(Guid ticketId, IFormFile file)
     {
-        if (file == null || file.Length == 0) { TempData["Error"] = "Файл не выбран"; return RedirectToAction("Details", "Tickets", new { id = ticketId }); }
+        if (file == null || file.Length == 0) { TempData["Error"] = "Файл не выбран"; return RedirectToAction("Details", "Tickets", new { id = ticketId, tab = "files" }); }
         using var stream = file.OpenReadStream();
         await _attachmentService.UploadAsync(ticketId, stream, file.FileName, file.ContentType, file.Length, CurrentUserId);
-        return RedirectToAction("Details", "Tickets", new { id = ticketId });
+        return RedirectToAction("Details", "Tickets", new { id = ticketId, tab = "files" });
     }
 
     public async Task<IActionResult> Download(Guid id)
@@ -26,5 +26,5 @@ public class FilesController : Controller
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(Guid id, Guid ticketId)
-    { await _attachmentService.DeleteAsync(id, CurrentUserId); return RedirectToAction("Details", "Tickets", new { id = ticketId }); }
+    { await _attachmentService.DeleteAsync(id, CurrentUserId); return RedirectToAction("Details", "Tickets", new { id = ticketId, tab = "files" }); }
 }

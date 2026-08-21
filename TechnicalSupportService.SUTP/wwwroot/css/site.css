@@ -1,5 +1,6 @@
-html { font-size: 14px; position: relative; min-height: 100%; }
-body { margin-bottom: 60px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+html { font-size: 14px; min-height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; min-height: 100vh; margin: 0; }
+body > .container.mt-4 { flex: 1; }
 .card { border-radius: 0.5rem; }
 .table tr[onclick]:hover { background-color: rgba(0,0,0,0.03); cursor: pointer; }
 .nav-tabs .nav-link.active { font-weight: 600; }

@@ -92,7 +92,7 @@ app.MapControllerRoute(
 
 app.Run();
 }
-catch (Exception ex)
+catch (Exception ex) when (ex is not Microsoft.Extensions.Hosting.HostAbortedException)
 {
     Log.Fatal(ex, "Приложение завершилось с критической ошибкой");
     throw;
