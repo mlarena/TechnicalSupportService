@@ -3,75 +3,66 @@
 @using TechnicalSupportService.Core.Helpers
 @{ ViewData["Title"] = "Дашборд"; }
 
-<h2>Дашборд</h2>
+<h2 class="mb-3">Дашборд</h2>
 
-<div class="row mb-4">
+<div class="row mb-4" id="statCards">
     <div class="col-md-2">
-        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.New })" class="text-decoration-none">
-            <div class="card stat-card rounded-3 h-100">
-                <div class="card-body text-center py-3">
-                    <div class="text-muted small mb-1">Новые</div>
-                    <div class="fs-3 fw-bold text-primary">@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</div>
-                </div>
+        <div class="card stat-card rounded-3 h-100" data-filter="status" data-value="New" onclick="filterDashboard(this)">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Новые</div>
+                <div class="fs-3 fw-bold text-primary">@(Model.TicketsByStatus.GetValueOrDefault("New", 0))</div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-md-2">
-        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.InProgress })" class="text-decoration-none">
-            <div class="card stat-card rounded-3 h-100">
-                <div class="card-body text-center py-3">
-                    <div class="text-muted small mb-1">В работе</div>
-                    <div class="fs-3 fw-bold text-warning">@Model.InProgressCount</div>
-                </div>
+        <div class="card stat-card rounded-3 h-100" data-filter="status" data-value="InProgress" onclick="filterDashboard(this)">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">В работе</div>
+                <div class="fs-3 fw-bold text-warning">@Model.InProgressCount</div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-md-2">
-        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.Assigned })" class="text-decoration-none">
-            <div class="card stat-card rounded-3 h-100">
-                <div class="card-body text-center py-3">
-                    <div class="text-muted small mb-1">Назначенные</div>
-                    <div class="fs-3 fw-bold text-info">@(Model.TicketsByStatus.GetValueOrDefault("Assigned", 0))</div>
-                </div>
+        <div class="card stat-card rounded-3 h-100" data-filter="status" data-value="Assigned" onclick="filterDashboard(this)">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Назначенные</div>
+                <div class="fs-3 fw-bold text-info">@(Model.TicketsByStatus.GetValueOrDefault("Assigned", 0))</div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-md-2">
-        <a href="@Url.Action("Index", "Tickets", new { Unassigned = true })" class="text-decoration-none">
-            <div class="card stat-card rounded-3 h-100">
-                <div class="card-body text-center py-3">
-                    <div class="text-muted small mb-1">Без исполнителя</div>
-                    <div class="fs-3 fw-bold text-secondary">@Model.UnassignedCount</div>
-                </div>
+        <div class="card stat-card rounded-3 h-100" data-filter="unassigned" data-value="true" onclick="filterDashboard(this)">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Без исполнителя</div>
+                <div class="fs-3 fw-bold text-secondary">@Model.UnassignedCount</div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-md-2">
-        <a href="@Url.Action("Index", "Tickets", new { Priority = Priority.Critical })" class="text-decoration-none">
-            <div class="card stat-card rounded-3 h-100">
-                <div class="card-body text-center py-3">
-                    <div class="text-muted small mb-1">Критические</div>
-                    <div class="fs-3 fw-bold text-danger">@Model.CriticalCount</div>
-                </div>
+        <div class="card stat-card rounded-3 h-100" data-filter="priority" data-value="Critical" onclick="filterDashboard(this)">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Критические</div>
+                <div class="fs-3 fw-bold text-danger">@Model.CriticalCount</div>
             </div>
-        </a>
+        </div>
     </div>
     <div class="col-md-2">
-        <a href="@Url.Action("Index", "Tickets", new { Status = TicketStatus.Resolved })" class="text-decoration-none">
-            <div class="card stat-card rounded-3 h-100">
-                <div class="card-body text-center py-3">
-                    <div class="text-muted small mb-1">Решённые</div>
-                    <div class="fs-3 fw-bold text-success">@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</div>
-                </div>
+        <div class="card stat-card rounded-3 h-100" data-filter="status" data-value="Resolved" onclick="filterDashboard(this)">
+            <div class="card-body text-center py-3">
+                <div class="text-muted small mb-1">Решённые</div>
+                <div class="fs-3 fw-bold text-success">@(Model.TicketsByStatus.GetValueOrDefault("Resolved", 0))</div>
             </div>
-        </a>
+        </div>
     </div>
 </div>
 
-<h4>Последние заявки</h4>
-<table class="table table-hover">
+<h4 id="tableTitle">Последние заявки</h4>
+<div id="loadingSpinner" class="text-center py-3" style="display:none">
+    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Загрузка...</span></div>
+</div>
+<table class="table table-hover" id="ticketsTable">
     <thead><tr><th>Номер</th><th>Заголовок</th><th>Статус</th><th>Приоритет</th><th>Исполнитель</th><th>Продукт</th><th>Дата</th></tr></thead>
-    <tbody>
+    <tbody id="ticketsTableBody">
     @foreach (var t in Model.RecentTickets)
     {
         <tr onclick="location.href='@Url.Action("Details", "Tickets", new { id = t.Id })'" style="cursor:pointer">
@@ -84,3 +75,97 @@
     }
     </tbody>
 </table>
+
+<script>
+function filterDashboard(el) {
+    var wasActive = el.classList.contains('active');
+    // Снимаем выделение со всех карточек
+    document.querySelectorAll('#statCards .stat-card').forEach(c => c.classList.remove('active'));
+
+    // Toggle: если карточка уже была активна — показываем все заявки
+    if (wasActive) {
+        document.getElementById('tableTitle').textContent = 'Последние заявки';
+        loadAllTickets();
+        return;
+    }
+
+    // Выделяем нажатую
+    el.classList.add('active');
+
+    var filterType = el.getAttribute('data-filter');
+    var filterValue = el.getAttribute('data-value');
+    var params = new URLSearchParams();
+    if (filterType === 'status') params.set('status', filterValue);
+    else if (filterType === 'priority') params.set('priority', filterValue);
+    else if (filterType === 'unassigned') params.set('unassigned', 'true');
+
+    var title = el.querySelector('.text-muted').textContent;
+    document.getElementById('tableTitle').textContent = title;
+
+    var spinner = document.getElementById('loadingSpinner');
+    var table = document.getElementById('ticketsTable');
+    spinner.style.display = 'block';
+    table.style.opacity = '0.5';
+
+    fetch('@Url.Action("GetFilteredTickets", "Dashboard")?' + params.toString())
+        .then(r => r.json())
+        .then(tickets => {
+            var tbody = document.getElementById('ticketsTableBody');
+            tbody.innerHTML = '';
+            tickets.forEach(t => {
+                var statusClass = t.status === 'New' ? 'info' : t.status === 'InProgress' ? 'warning' : t.status === 'Assigned' ? 'primary' : t.status === 'Resolved' ? 'success' : t.status === 'Reopened' ? 'danger' : 'secondary';
+                var priorityClass = t.priority === 'Critical' ? 'danger' : t.priority === 'High' ? 'warning' : t.priority === 'Medium' ? 'info' : 'secondary';
+                var row = '<tr onclick="location.href=\'' + '@Url.Action("Details", "Tickets")' + '/' + t.id + '\'' + '" style="cursor:pointer">'
+                    + '<td>' + t.number + '</td>'
+                    + '<td>' + t.title + '</td>'
+                    + '<td><span class="badge bg-' + statusClass + '">' + t.statusDisplay + '</span></td>'
+                    + '<td><span class="badge bg-' + priorityClass + '">' + t.priorityDisplay + '</span></td>'
+                    + '<td>' + (t.assignedToUserName || '—') + '</td>'
+                    + '<td>' + t.productName + '</td>'
+                    + '<td>' + t.createdAt + '</td>'
+                    + '</tr>';
+                tbody.innerHTML += row;
+            });
+            spinner.style.display = 'none';
+            table.style.opacity = '1';
+        })
+        .catch(() => {
+            spinner.style.display = 'none';
+            table.style.opacity = '1';
+        });
+}
+
+function loadAllTickets() {
+    var spinner = document.getElementById('loadingSpinner');
+    var table = document.getElementById('ticketsTable');
+    spinner.style.display = 'block';
+    table.style.opacity = '0.5';
+
+    fetch('@Url.Action("GetFilteredTickets", "Dashboard")')
+        .then(r => r.json())
+        .then(tickets => {
+            var tbody = document.getElementById('ticketsTableBody');
+            tbody.innerHTML = '';
+            tickets.forEach(t => {
+                var statusClass = t.status === 'New' ? 'info' : t.status === 'InProgress' ? 'warning' : t.status === 'Assigned' ? 'primary' : t.status === 'Resolved' ? 'success' : t.status === 'Reopened' ? 'danger' : 'secondary';
+                var priorityClass = t.priority === 'Critical' ? 'danger' : t.priority === 'High' ? 'warning' : t.priority === 'Medium' ? 'info' : 'secondary';
+                var row = '<tr onclick="location.href=\'' + '@Url.Action("Details", "Tickets")' + '/' + t.id + '\'" style="cursor:pointer">'
+                    + '<td>' + t.number + '</td>'
+                    + '<td>' + t.title + '</td>'
+                    + '<td><span class="badge bg-' + statusClass + '">' + t.statusDisplay + '</span></td>'
+                    + '<td><span class="badge bg-' + priorityClass + '">' + t.priorityDisplay + '</span></td>'
+                    + '<td>' + (t.assignedToUserName || '—') + '</td>'
+                    + '<td>' + t.productName + '</td>'
+                    + '<td>' + t.createdAt + '</td>'
+                    + '</tr>';
+                tbody.innerHTML += row;
+            });
+            spinner.style.display = 'none';
+            table.style.opacity = '1';
+        })
+        .catch(() => {
+            spinner.style.display = 'none';
+            table.style.opacity = '1';
+        });
+}
+</script>
