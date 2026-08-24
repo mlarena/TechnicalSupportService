@@ -150,4 +150,47 @@ public class TicketsController : Controller
     [HttpPost, ValidateAntiForgeryToken, Authorize(Roles = Roles.Admin)]
     public async Task<IActionResult> Delete(Guid id)
     { await _ticketService.DeleteAsync(id, CurrentUserId); return RedirectToAction("Index"); }
+
+    [HttpGet]
+    public async Task<IActionResult> GetFilteredTickets(
+        TicketStatus? status, Priority? priority, Category? category,
+        Guid? productId, Guid? assignedToUserId, string? search,
+        int page = 1, int pageSize = 20)
+    {
+        var filter = new TicketFilterDto
+        {
+            Status = status,
+            Priority = priority,
+            Category = category,
+            ProductId = productId,
+            AssignedToUserId = assignedToUserId,
+            Search = search,
+            Page = page,
+            PageSize = pageSize
+        };
+
+        var result = await _ticketService.GetListAsync(filter, CurrentUserId, CurrentRole);
+
+        var tickets = result.Items.Select(t => new
+        {
+            id = t.Id,
+            number = t.Number,
+            title = t.Title,
+            status = t.Status.ToString(),
+            statusDisplay = t.Status.ToDisplayString(),
+            priority = t.Priority.ToString(),
+            priorityDisplay = t.Priority.ToDisplayString(),
+            productName = t.ProductName,
+            assignedToUserName = t.AssignedToUserName,
+            createdAt = t.CreatedAt.ToString("dd.MM.yyyy")
+        });
+
+        return Json(new
+        {
+            items = tickets,
+            totalCount = result.TotalCount,
+            page = result.Page,
+            totalPages = result.TotalPages
+        });
+    }
 }
