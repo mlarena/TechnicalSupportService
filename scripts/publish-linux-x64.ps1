@@ -75,7 +75,7 @@ try {
     Write-Host "  + $innerZipName" -ForegroundColor Gray
 
     # Add shell scripts
-    foreach ($script in @("install-sutp.sh", "update-sutp.sh", "remove-sutp.sh")) {
+    foreach ($script in @("install-sutp.sh", "update-sutp.sh", "remove-sutp.sh", "setup_nginx.sh", "setup_postgresql.sh", "setup-nginx-proxy.sh")) {
         $scriptPath = Join-Path $scriptsDir $script
         if (Test-Path $scriptPath) {
             [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($outerArchive, $scriptPath, $script)

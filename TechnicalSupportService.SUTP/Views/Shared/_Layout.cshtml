@@ -21,7 +21,7 @@
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <ul class="navbar-nav me-auto">
-                        <li class="nav-item"><a class="nav-link" asp-controller="Dashboard" asp-action="Index">Дашборд</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-controller="Dashboard" asp-action="Index">Центр управления заявками</a></li>
                         <li class="nav-item"><a class="nav-link" asp-controller="Tickets" asp-action="Index">Заявки</a></li>
                         @if (User.IsInRole(Roles.Admin))
                         {

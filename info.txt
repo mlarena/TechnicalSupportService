@@ -1,1 +1,3 @@
-cd C:\dev\TechnicalSupportService; dotnet run --project TechnicalSupportService.SUTP/TechnicalSupportService.SUTP.csproj --urls "http://localhost:5000"
+cd C:\dev\TechnicalSupportService; dotnet run --project TechnicalSupportService.SUTP/TechnicalSupportService.SUTP.csproj --urls "http://localhost:5088"
+
+scp "C:\dev\TechnicalSupportService\artifacts\SUTP.zip" devuser@192.168.192.167:/tmp
